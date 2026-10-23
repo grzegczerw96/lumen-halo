@@ -108,6 +108,8 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 #kolory { display: grid; grid-template-columns: 1fr minmax(380px, 520px); gap: 4vw; align-items: center; padding: calc(var(--nav-h) + 16px) var(--pad) 24px; }
 .spin-area { align-self: stretch; position: relative; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .spin-area:active { cursor: grabbing; }
+/* na białym tle: miękki szary cień pod unoszącym się modelem, żeby jasne słuchawki nie zlewały się z tłem */
+.spin-area::before { content: ""; position: absolute; left: 18%; right: 18%; bottom: 7%; height: 9%; background: radial-gradient(closest-side, rgba(0, 0, 0, .1), transparent); pointer-events: none; }
 .spin-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--faint); white-space: nowrap; }
 .config { display: flex; flex-direction: column; gap: clamp(12px, 2.1vh, 22px); }
 .config .h2 { font-size: clamp(34px, 3.8vw, 56px); }
@@ -215,10 +217,11 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .buy { padding: 20px; gap: 12px; border-radius: 22px; }
   .buy .price { font-size: 30px; }
 }
-/* telefon: zdjęcie tak, żeby lewa słuchawka była widoczna w całości, i jeden przycisk (dwa nie mieszczą się obok siebie) */
+/* telefon: zdjęcie tak, żeby lewa słuchawka była widoczna w całości, i jeden przycisk: czarny „Umów odsłuch” (Kup jest w menu) */
 @media (max-width: 560px) {
   .photo { background-position: 56% 50%; }
-  .hero-copy .cta-row .btn.ghost { display: none; }
+  .hero-copy .cta-row .btn:not(.ghost) { display: none; }
+  .hero-copy .cta-row .btn.ghost { background: #111; color: #fff; box-shadow: none; }
 }
 /* tablet pionowo: większy nagłówek, tekst wyżej nad słuchawkami */
 @media (min-width: 561px) and (max-aspect-ratio: 5/6) {
@@ -260,8 +263,8 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   <nav class="menu" aria-label="Sekcje">
     <a href="#start">Start</a>
     <a href="#design">Design</a>
-    <a href="#lekkosc">Lekkość</a>
     <a href="#kolory">Kolory</a>
+    <a href="#lekkosc">Lekkość</a>
     <a href="#dzien">Cały dzień</a>
     <a href="#dane">Dane techniczne</a>
   </nav>
@@ -294,21 +297,6 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
     <article class="lp"><h3>Ruchome ramię</h3><p>Płynna regulacja, cicha jak zawias drzwi.</p></article>
   </section>
 
-  <section id="lekkosc" aria-label="Lekkość">
-    <div class="lek-copy">
-      <div class="lek-intro">
-        <p class="eb">Lekkość</p>
-        <p class="lead" style="margin-top:18px">Pałąk z dzianiny 3D rozkłada nacisk, a poduszki z pianki memory dopasowują się do ucha.</p>
-      </div>
-      <div class="lek-out">
-        <p class="eb">Lekkość</p>
-        <p class="big">268 g</p>
-        <h2 class="h2"><span>Po godzinie</span>o nich zapominasz.</h2>
-        <div class="chips"><span class="chip">Dzianina 3D</span><span class="chip">Pianka memory</span><span class="chip">Aluminium</span></div>
-      </div>
-    </div>
-  </section>
-
   <section id="kolory" aria-label="Kolory i zakup">
     <div class="spin-area" id="spin"><span class="spin-hint">Przeciągnij, aby obrócić</span></div>
     <div class="config">
@@ -330,6 +318,21 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
       <input class="field" id="engrave" maxlength="4" placeholder="Inicjały, np. A.K. · bezpłatnie" aria-label="Inicjały do graweru">
       <div class="sum"><strong id="k-total">Razem 1 899 zł</strong><small>Dostawa jutro · 30 dni na zwrot</small></div>
       <button class="btn" id="k-buy">Kup Lumen Halo · Kreda</button>
+    </div>
+  </section>
+
+  <section id="lekkosc" aria-label="Lekkość">
+    <div class="lek-copy">
+      <div class="lek-intro">
+        <p class="eb">Lekkość</p>
+        <p class="lead" style="margin-top:18px">Pałąk z dzianiny 3D rozkłada nacisk, a poduszki z pianki memory dopasowują się do ucha.</p>
+      </div>
+      <div class="lek-out">
+        <p class="eb">Lekkość</p>
+        <p class="big">268 g</p>
+        <h2 class="h2"><span>Po godzinie</span>o nich zapominasz.</h2>
+        <div class="chips"><span class="chip">Dzianina 3D</span><span class="chip">Pianka memory</span><span class="chip">Aluminium</span></div>
+      </div>
     </div>
   </section>
 

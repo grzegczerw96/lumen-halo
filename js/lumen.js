@@ -55,7 +55,7 @@ scene.add(pivot);
 const L = { mobile: false, compact: false, dist: 13 };
 const halfH = () => L.dist * Math.tan(degToRad(15));
 const halfW = () => halfH() * camera.aspect;
-const BASE = { px: 0, py: 0, pz: 0, rx: 0.08, ry: -0.9, rz: 0, s: 0.9, camY: 0.6, camTY: 0, bob: 1, alpha: 1 };
+const BASE = { px: 0, py: 0, pz: 0, rx: 0.08, ry: -0.9, rz: 0, s: 0.9, camY: 0.6, camTY: 0, bob: 1, sway: 0, alpha: 1 };
 const pose = (o) => ({ ...BASE, ...o });
 // Telefon: model mieści się w wolnym pasie między tekstami. Pas jest liczony z położenia elementów w sekcji
 // (sekcja przypięta stoi u góry ekranu), więc działa przy każdej wysokości tekstu i ekranu.
@@ -75,9 +75,10 @@ const LP_MOB_H = 210; // pas na dole ekranu (tablet, telefon) na opis cechy i pa
 const P = {
   // Anatomia (lupa): duży model na środku smugi światła, ok. 58% wysokości ekranu; zbliżenia detali stoją wokół
   an: () => {
-    if (!L.compact) return pose({ py: -0.5, rx: 0.12, ry: -0.9, s: 1.1 });
-    // tablet i telefon: model między tytułem a opisem z paskiem stanu na dole
-    const f = fitIn(rel('.anat-head', '#design').bottom + 8, innerHeight - LP_MOB_H, 2.4); // na wąskim ekranie kamera stoi dalej, więc skala może być większa
+    // model w wolnym pasie pod tytułem (z zapasem, bo przy ujęciu pałąka model pochyla się do przodu i rośnie w górę);
+    // tablet i telefon: nad opisem z paskiem stanu, a kamera stoi dalej, więc skala może być większa
+    const top = rel('.anat-head', '#design').bottom + 48;
+    const f = L.compact ? fitIn(top, innerHeight - LP_MOB_H, 2.4) : fitIn(top, innerHeight - 32, 1.1);
     return pose({ py: f.py, rx: 0.12, ry: -0.9, s: f.s });
   },
   lek: () => {
@@ -88,7 +89,7 @@ const P = {
   kol: () => {
     // model w lewej kolumnie (desktop) albo w pasie nad konfiguratorem (telefon)
     const r = rel('#spin', '#kolory'), f = fitRect({ ...r, bottom: r.bottom - 22 }, L.mobile ? 0.7 : 0.95, 1.15, 0.8);
-    return pose({ px: f.px, py: f.py, s: f.s });
+    return pose({ px: f.px, py: f.py, ry: -0.75, s: f.s, sway: 1 }); // na białym tle model powoli kołysze się na boki
   },
   day: () => pose({ px: (L.mobile ? 0.58 : 0.66) * halfW(), py: (L.mobile ? 0.7 : 0.5) * halfH(), rx: 0.14, s: L.mobile ? 0.26 : 0.44 }), // telefon: w rzędzie nadtytułu, obok krótkiego „Cały dzień”
   end: () => ({ ...P.day(), alpha: 0 }),
@@ -524,9 +525,9 @@ const mix = (stops, h) => { // interpolacja kolorów/liczb wg godziny
 // (a nie osobnymi animacjami w każdej sekcji). Dzięki temu skok w dowolne miejsce, także powrót na górę
 // jednym kliknięciem, zawsze daje właściwe ujęcie. Lenis wygładza samo przewijanie.
 const KOL = [
-  { title: ['Kreda.', 'Jasna jak poranek.'], lead: 'Ceramika w kolorze kredy, dzianina w kolorze mgły.', bg: '#eff0f1', sun: ['#f1f5ff', 1.45] },
-  { title: ['Piasek.', 'Ciepło południa.'], lead: 'Ceramika piaskowa, dzianina owsiana, aluminium szampańskie.', bg: '#f3eee6', sun: ['#fff0da', 1.55] },
-  { title: ['Grafit.', 'Spokojny jak wieczór.'], lead: 'Grafitowa ceramika i węglowa dzianina.', bg: '#e6e3df', sun: ['#ffdcbc', 1.25] },
+  { title: ['Kreda.', 'Jasna jak poranek.'], lead: 'Ceramika w kolorze kredy, dzianina w kolorze mgły.', bg: '#ffffff', sun: ['#f1f5ff', 1.45] },
+  { title: ['Piasek.', 'Ciepło południa.'], lead: 'Ceramika piaskowa, dzianina owsiana, aluminium szampańskie.', bg: '#ffffff', sun: ['#fff0da', 1.55] },
+  { title: ['Grafit.', 'Spokojny jak wieczór.'], lead: 'Grafitowa ceramika i węglowa dzianina.', bg: '#ffffff', sun: ['#ffdcbc', 1.25] },
 ];
 let color = 0;
 const kolBg = new THREE.Color(KOL[0].bg); // płynnie zmienia się przy wyborze koloru
@@ -588,14 +589,15 @@ function scrollState(y) {
     S.lp = smooth(seg(v, -0.45, -0.05)) * (1 - smooth(seg(u, AN_U - 0.35, AN_U - 0.12)));
     S.lpV = v;
   }
-  else if (y < B.lS) { const t = seg(y, B.dE, B.lS); S.pose = mixPose(featPose(4), POSES.lek, t); S.bg = mixCol(ANAT_BG, '#e6e6ea', t); }
+  // Anatomia → oferta: model przesuwa się do kolumny konfiguratora i lekko dokręca, tło przechodzi w białe
+  else if (y < B.kS) { const t = seg(y, B.dE, B.kS); S.pose = mixPose(featPose(4), POSES.kol, io(t)); S.bg = mixCol(ANAT_BG, kolBg, t); }
+  else if (y < B.lS) { const t = seg(y, B.kS, B.lS); S.pose = mixPose(POSES.kol, POSES.lek, t); S.vis = dipAt(t); S.bg = mixCol(kolBg, '#e6e6ea', t); }
   else if (y <= B.lE) {
     // Lekkość: rozsypanie (0,2–1,3), piórko i „268 g”, powrót do słuchawek (2,0–2,8)
     const u = seg(y, B.lS, B.lE) * 2.9;
     S.pose = POSES.lek; S.wave = u < 1.3 ? seg(u, 0.2, 1.3) : u < 2 ? 1 : 1 - seg(u, 2, 2.8); S.bg = 'e6e6ea';
   }
-  else if (y < B.kS) { const t = seg(y, B.lE, B.kS); S.pose = mixPose(POSES.lek, POSES.kol, t); S.vis = dipAt(t); S.bg = mixCol('#e6e6ea', kolBg, t); }
-  else if (y < B.yS) { const t = seg(y, B.kS, B.yS); S.pose = mixPose(POSES.kol, POSES.day, t); S.vis = dipAt(t); S.bg = mixCol(kolBg, BG_DAY[0][1], t); }
+  else if (y < B.yS) { const t = seg(y, B.lE, B.yS); S.pose = mixPose(POSES.lek, POSES.day, t); S.vis = dipAt(t); S.bg = mixCol('#e6e6ea', BG_DAY[0][1], t); }
   else if (y <= B.yE) { const u = seg(y, B.yS, B.yE); S.pose = { ...POSES.day, ry: POSES.day.ry + u * Math.PI * 2 }; S.day = lerp(7, 23, smooth((u - 0.04) / 0.76)); }
   else { const t = seg(y, B.yE, B.eE); S.pose = mixPose({ ...POSES.day, ry: POSES.day.ry + Math.PI * 2 }, POSES.end, t); S.bg = mixCol(BG_DAY[BG_DAY.length - 1][1], '#ffffff', t); }
   return S;
@@ -660,7 +662,8 @@ function frame(time) {
   }
   const bob = reduce ? 0 : Math.sin(t * 0.9) * 0.05 * rig.bob;
   pivot.position.set(rig.px, rig.py + bob, rig.pz);
-  pivot.rotation.set(rig.rx + drag.x, rig.ry + drag.y, rig.rz, 'YXZ');
+  const sway = reduce ? 0 : Math.sin(t * 0.45) * 0.16 * rig.sway; // oferta: powolne kołysanie na boki
+  pivot.rotation.set(rig.rx + drag.x, rig.ry + drag.y + sway, rig.rz, 'YXZ');
   pivot.scale.setScalar(rig.s);
   camera.position.set(0, rig.camY, L.dist);
   camera.lookAt(0, rig.camTY, 0);
@@ -704,17 +707,17 @@ function timelines() {
   tA.to('.anat-head', { autoAlpha: 0, y: -30, duration: 0.15 }, AN_U - 0.15)
     .to({}, { duration: 0.1 }, AN_U - 0.1);
 
-  // 3. Lekkość: tekst przed przemianą i „268 g” po niej
+  // 3. Oferta (kolory i zakup): bez przypięcia; tu można obracać model
+  ScrollTrigger.create({ id: 'kol', trigger: '#kolory', start: 'top top', end: 'bottom top' });
+  ScrollTrigger.create({ trigger: '#kolory', start: 'top 60%', end: 'bottom 40%', onLeave: resetDrag, onLeaveBack: resetDrag });
+
+  // 4. Lekkość: tekst przed przemianą i „268 g” po niej
   gsap.timeline({ scrollTrigger: { id: 'lek', trigger: '#lekkosc', start: 'top top', end: '+=260%', pin: true, scrub: SCRUB } })
     .fromTo('.lek-intro', { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: 0.15, immediateRender: false }, 0)
     .to('.lek-intro', { autoAlpha: 0, y: -20, duration: 0.15 }, 0.75)
     .fromTo('.lek-out', { autoAlpha: 0, y: 30 }, { autoAlpha: 1, y: 0, duration: 0.25, immediateRender: false }, 1.05)
     .to('.lek-out', { autoAlpha: 0, y: -30, duration: 0.2 }, 1.9)
     .to({}, { duration: 0.1 }, 2.8);
-
-  // 4. Kolory: bez przypięcia; tu można obracać model
-  ScrollTrigger.create({ id: 'kol', trigger: '#kolory', start: 'top top', end: 'bottom top' });
-  ScrollTrigger.create({ trigger: '#kolory', start: 'top 60%', end: 'bottom 40%', onLeave: resetDrag, onLeaveBack: resetDrag });
 
   // 5. Cały dzień: godzina biegnie od 7:00 do 23:00 (scrollState), na końcu karty z faktami
   gsap.timeline({ scrollTrigger: { id: 'day', trigger: '#dzien', start: 'top top', end: '+=220%', pin: true, scrub: SCRUB } })
