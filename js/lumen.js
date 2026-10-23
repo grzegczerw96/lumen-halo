@@ -510,7 +510,11 @@ function measure() {
   POSES = Object.fromEntries(Object.keys(P).map((k) => [k, P[k]()]));
   placeLoupes();
 }
-const AN_0 = 0.8, AN_U = AN_0 + 5, AN_TURN = 0.15; // Anatomia: dokończenie wejścia słuchawek, potem 5 cech po 1 jednostce
+const AN_0 = 0.8, AN_U = AN_0 + 5;
+// ujęcie dla każdej cechy (obrót wokół osi pionowej i pochylenie): opisywana część zwrócona do widza.
+// Kolejność jak w LP: pierścień, ceramika, pałąk (lekko z góry), ramię, pianka (przez szczelinę między muszlami)
+const FEAT_ROT = [[-1.15, 0.12], [-1.45, 0.06], [-0.7, 0.32], [-1.0, 0.12], [-0.5, 0.1]];
+const featPose = (i) => ({ ...POSES.an, ry: FEAT_ROT[i][0], rx: FEAT_ROT[i][1] }); // Anatomia: dokończenie wejścia słuchawek, potem 5 cech po 1 jednostce
 const io = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2); // power2.inOut
 const seg = (y, a, b) => clamp((y - a) / (b - a), 0, 1);
 const mixPose = (a, b, t) => Object.fromEntries(KEYS.map((k) => [k, lerp(a[k], b[k], t)]));
@@ -520,13 +524,13 @@ const dipAt = (t) => (t < 0.5 ? 1 - smooth((t - 0.05) / 0.35) : smooth((t - 0.6)
 
 function scrollState(y) {
   const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0 };
-  // wejście słuchawek: od końca Startu (tytuł już stoi) do połowy pierwszej jednostki przypiętej Anatomii
-  const ent = seg(y, B.hE * 0.9, B.dS + (B.dE - B.dS) / AN_U * 0.5);
+  // wejście słuchawek: razem z pojawianiem się tytułu (od 0,6 Startu) do połowy pierwszej jednostki przypiętej Anatomii
+  const ent = seg(y, B.hE * 0.6, B.dS + (B.dE - B.dS) / AN_U * 0.5);
   if (y < B.dS) {
     // Start (przypięty): najpierw gaśnie tekst (oś czasu), potem zdjęcie, a pod koniec pojawia się smuga światła
     // i tytuł Anatomii (pętla); potem sekcja Anatomia dojeżdża pod stojący już tytuł.
     const t = seg(y, 0, B.hE);
-    S.pose = { ...POSES.an, ry: POSES.an.ry - AN_TURN * 2 }; S.ent = ent; // ustawienie jak przy pierwszej cesze
+    S.pose = featPose(0); S.ent = ent; // ustawienie jak przy pierwszej cesze
     S.photo = 1 - smooth(seg(t, 0.3, 0.72));
     S.light = 0.85 * smooth(seg(t, 0.55, 1));
     S.bg = mixCol('#efebe5', ANAT_BG, seg(t, 0.3, 0.72));
@@ -538,13 +542,13 @@ function scrollState(y) {
     S.ent = ent;
     S.light = 0.85 * (1 - seg(u, AN_U - 0.25, AN_U));
     S.bg = ANAT_BG.slice(1);
-    // obrót zgrany z cechami: model dokręca się o krok, gdy jedna cecha gaśnie, a następna się pojawia
-    const vi = clamp(v, 0, 5), k = Math.min(4, Math.floor(vi)), f = k + (k < 4 ? smooth(seg(vi - k, 0.72, 0.98)) : 0);
-    S.pose = { ...POSES.an, ry: POSES.an.ry + AN_TURN * (f - 2) };
+    // obrót zgrany z cechami: model obraca się do następnego ujęcia, gdy jedna cecha gaśnie, a następna się pojawia
+    const vi = clamp(v, 0, 5), k = Math.min(4, Math.floor(vi));
+    S.pose = k < 4 ? mixPose(featPose(k), featPose(k + 1), smooth(seg(vi - k, 0.68, 1))) : featPose(4);
     S.lp = smooth(seg(v, -0.45, -0.05)) * (1 - smooth(seg(u, AN_U - 0.35, AN_U - 0.12)));
     S.lpV = v;
   }
-  else if (y < B.lS) { const t = seg(y, B.dE, B.lS); S.pose = mixPose({ ...POSES.an, ry: POSES.an.ry + AN_TURN * 2 }, POSES.lek, t); S.bg = mixCol(ANAT_BG, '#e6e6ea', t); }
+  else if (y < B.lS) { const t = seg(y, B.dE, B.lS); S.pose = mixPose(featPose(4), POSES.lek, t); S.bg = mixCol(ANAT_BG, '#e6e6ea', t); }
   else if (y <= B.lE) {
     // Lekkość: rozsypanie (0,2–1,3), piórko i „268 g”, powrót do słuchawek (2,0–2,8)
     const u = seg(y, B.lS, B.lE) * 2.9;

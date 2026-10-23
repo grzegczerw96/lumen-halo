@@ -119,10 +119,10 @@ export function buildHalo(renderer) {
   const M = {
     ceramic: new THREE.MeshPhysicalMaterial({ color: P0.ceramic, vertexColors: true, roughness: 0.6, clearcoat: 0.08, clearcoatRoughness: 0.5, envMapIntensity: 0.9 }),
     // (anizotropia na toczonej geometrii rozmywała odbicia w szarą plamę; satynę daje sama chropowatość z rysami)
-    metal: new THREE.MeshPhysicalMaterial({ color: P0.metal, vertexColors: true, metalness: 1, roughness: 0.3, roughnessMap: brushed, envMapIntensity: 1.15 }),
-    lip: new THREE.MeshPhysicalMaterial({ color: P0.metal, metalness: 1, roughness: 0.1, envMapIntensity: 1.3 }), // polerowana fazka wokół frontu: cienka jasna linia
-    polish: new THREE.MeshPhysicalMaterial({ color: P0.metal, vertexColors: true, metalness: 1, roughness: 0.32, roughnessMap: brushed, envMapIntensity: 1.15 }), // tuleje i przeguby
-    pivot: new THREE.MeshPhysicalMaterial({ color: P0.metal, metalness: 1, roughness: 0.28, roughnessMap: brushed, envMapIntensity: 1.15 }), // trzpień przegubu: srebrny, jak cała reszta połączenia
+    metal: new THREE.MeshPhysicalMaterial({ color: P0.metal, vertexColors: true, metalness: 1, roughness: 0.44, roughnessMap: brushed, envMapIntensity: 0.95 }),
+    lip: new THREE.MeshPhysicalMaterial({ color: P0.metal, metalness: 1, roughness: 0.34, roughnessMap: brushed, envMapIntensity: 0.95 }), // wąski satynowy pierścień wokół frontu (na zdjęciu z hero matowy, bez lustrzanego blasku)
+    polish: new THREE.MeshPhysicalMaterial({ color: P0.metal, vertexColors: true, metalness: 1, roughness: 0.44, roughnessMap: brushed, envMapIntensity: 0.95 }), // tuleje i przeguby
+    pivot: new THREE.MeshPhysicalMaterial({ color: P0.metal, metalness: 1, roughness: 0.44, roughnessMap: brushed, envMapIntensity: 0.95 }), // trzpień przegubu: srebrny, jak cała reszta połączenia
     cushion: (() => { const m = fabric(6, 2); m.color.set(P0.cushion); return m; })(), // dzianina jak na pałąku (zdjęcie z hero); powtórzenia całkowite, bo poduszka jest zamknięta w obu kierunkach
     band: fabric(8, 1.5), // splot w większej skali niż na poduszkach: na zdjęciach wzór dzianiny pałąka jest wyraźnie widoczny
     // tkanina akustyczna w otworze poduszki: wyraźny splot, w półcieniu także gdy model jest obrócony otworem do światła
@@ -253,10 +253,10 @@ export function buildHalo(renderer) {
   const nearArm = (p) => gauss(Math.hypot(p.x, p.z + R, p.y - ARM_Z), 0.25);
   function cup() {
     const g = new THREE.Group();
-    const face = lathe([[0, SHELL], [RF - 0.07, SHELL], [RF - 0.05, SHELL - 0.002], [RF - 0.044, SHELL - 0.006]], M.ceramic);
+    const face = lathe([[0, SHELL], [RF - 0.04, SHELL], [RF - 0.024, SHELL - 0.002], [RF - 0.018, SHELL - 0.005]], M.ceramic);
     bakeAO(face.geometry, (p) => 1 - 0.2 * nearArm(p)); // cień przegubu na górze frontu
-    // polerowany pierścień wokół ceramiki (jak na zdjęciu z hero): szeroki ok. 3 mm, wystaje odrobinę ponad front
-    const lip = lathe([[RF - 0.05, SHELL - 0.004], [RF - 0.046, SHELL + 0.008], [RF - 0.03, SHELL + 0.014], [RF, SHELL + 0.012], [RF + 0.016, SHELL + 0.002], [RF + 0.024, SHELL - 0.014], [RF + 0.026, SHELL - 0.024]], M.lip);
+    // wąski pierścień wokół ceramiki (jak na zdjęciu z hero): ok. 1,5 mm, ledwie ponad frontem
+    const lip = lathe([[RF - 0.022, SHELL - 0.004], [RF - 0.018, SHELL + 0.005], [RF - 0.006, SHELL + 0.008], [RF + 0.008, SHELL + 0.004], [RF + 0.016, SHELL - 0.01], [RF + 0.02, SHELL - 0.022]], M.lip);
     const ring = lathe([[RF + 0.016, SHELL - 0.02], [RF + 0.03, SHELL - 0.03], [R + 0.01, 0.06], [R + 0.012, 0.035], [R, 0.012], [R - 0.05, 0]], M.metal);
     bakeAO(ring.geometry, (p) => (1 - 0.6 * Math.exp(-p.y / 0.05)) * (1 - 0.5 * nearArm(p)));
     g.add(face, lip, ring, mesh(cushionGeo(), M.cushion));
