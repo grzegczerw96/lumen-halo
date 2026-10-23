@@ -1128,6 +1128,9 @@ function placeLoupes() {
   const W = innerWidth, H = innerHeight, d = Math.min(0.085 * W, 0.125 * H);
   left.forEach((o, k) => { LP[o.i].slot = { x: 0.15 * W, y: [0.4, 0.68][k] * H, side: 'l' }; });
   right.forEach((o, k) => { LP[o.i].slot = { x: 0.85 * W, y: [0.27, 0.52, 0.77][k] * H, side: 'r' }; });
+  // numeracja i kolejność zapalania jak przy czytaniu: lewa kolumna od góry, potem prawa
+  [...left, ...right].forEach((o, k) => { LP[o.i].order = k; LP[o.i].el.querySelector('.num').textContent = '0' + (k + 1); });
+  lpOn = -1;
   const pad = Math.max(24, 0.045 * W);
   LP.forEach((l) => {
     l.d0 = L.mobile ? Math.min(0.3 * W, 112) : d;
@@ -1149,8 +1152,8 @@ function drawLoupes(a, v) {
   const vc = clamp(v, 0.5, 4.5), on = clamp(Math.floor(vc), 0, 4);
   const unit = halo.matrixWorld.getMaxScaleOnAxis();
   renderer.shadowMap.autoUpdate = false; // cienie policzone w głównym przebiegu
-  LP.forEach((l, i) => {
-    const w = clamp(1 - Math.max(0, Math.abs(vc - (i + 0.5)) - 0.35) / 0.3, 0, 1), sw = smooth(w);
+  LP.forEach((l) => {
+    const w = clamp(1 - Math.max(0, Math.abs(vc - (l.order + 0.5)) - 0.35) / 0.3, 0, 1), sw = smooth(w);
     const show = L.mobile ? a * sw : a;
     l.at.getWorldPosition(wTmp);
     const s = wTmp.clone().project(camera), ax = (s.x * 0.5 + 0.5) * innerWidth, ay = (-s.y * 0.5 + 0.5) * innerHeight;
@@ -1178,7 +1181,7 @@ function drawLoupes(a, v) {
   });
   renderer.setRenderTarget(null);
   renderer.shadowMap.autoUpdate = true;
-  if (on !== lpOn) { LP.forEach((l, i) => l.el.classList.toggle('on', i === on)); lpOn = on; }
+  if (on !== lpOn) { LP.forEach((l) => l.el.classList.toggle('on', l.order === on)); lpOn = on; }
   renderer.autoClear = false;
   renderer.render(ovScene, ovCam);
   renderer.autoClear = true;
