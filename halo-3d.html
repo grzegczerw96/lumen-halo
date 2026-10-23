@@ -312,7 +312,7 @@ function setColor(i) {
   current = i;
   const p = PALETTES[i];
   const tw = (mat, hex) => { const c = new THREE.Color(hex); gsap.to(mat.color, { r: c.r, g: c.g, b: c.b, duration: reduce ? 0 : 0.9, ease: 'power2.out', onUpdate: () => (dirty = true) }); };
-  tw(M.ceramic, p.ceramic); tw(M.metal, p.metal); tw(M.lip, p.metal); tw(M.polish, p.metal); tw(M.cushion, p.cushion); tw(M.band, p.band); tw(M.inner, p.inner);
+  tw(M.ceramic, p.ceramic); tw(M.metal, p.metal); tw(M.lip, p.metal); tw(M.polish, p.metal); tw(M.pivot, p.metal); tw(M.cushion, p.cushion); tw(M.band, p.band); tw(M.inner, p.inner);
   segBtns.forEach((b, k) => b.setAttribute('aria-selected', String(k === i)));
   show(i);
   document.getElementById('price').textContent = p.name + ' — 1 899 zł';

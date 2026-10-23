@@ -2,12 +2,12 @@
 // plus studio do odbić. Jedno źródło dla prototypu halo-3d.html i strony lumen.html.
 import * as THREE from 'three';
 
-// Kolory ze zdjęć produktu: pałąk z dzianiny w odcieniu „mgły” (ciemniejszy od ceramiki), poduszki z gładkiej ekoskóry,
+// Kolory ze zdjęć produktu: pałąk i poduszki z tej samej dzianiny w odcieniu „mgły” (ciemniejszym od ceramiki),
 // wnętrze poduszki z szarej dzianiny
 export const PALETTES = [
-  { name: 'Kreda', cta: 'Wybierz Kredę', ceramic: '#efeeeb', band: '#a9a9ad', cushion: '#e5e4e1', metal: '#d0cdc8', inner: '#a4a4a6' },
-  { name: 'Piasek', cta: 'Wybierz Piasek', ceramic: '#e4dbce', band: '#c9b9a1', cushion: '#cdbca4', metal: '#d8cdbb', inner: '#9a8d7b' },
-  { name: 'Grafit', cta: 'Wybierz Grafit', ceramic: '#4a4a4d', band: '#424246', cushion: '#3a3a3d', metal: '#77777c', inner: '#2a2a2c' },
+  { name: 'Kreda', cta: 'Wybierz Kredę', ceramic: '#efeeeb', band: '#a9a9ad', cushion: '#b3b3b6', metal: '#d0cdc8', inner: '#a4a4a6' },
+  { name: 'Piasek', cta: 'Wybierz Piasek', ceramic: '#e4dbce', band: '#c9b9a1', cushion: '#cfc0a9', metal: '#d8cdbb', inner: '#9a8d7b' },
+  { name: 'Grafit', cta: 'Wybierz Grafit', ceramic: '#4a4a4d', band: '#424246', cushion: '#46464a', metal: '#77777c', inner: '#2a2a2c' },
 ];
 
 // Studio do odbić: szare tło i kilka softboksów, jak przy zdjęciach produktowych.
@@ -107,11 +107,6 @@ export function buildHalo(renderer) {
     return t;
   };
   const knitNormalTex = (rx, ry) => normalTex(knitNormal, rx, ry);
-  // Ekoskóra poduszek (na zdjęciach gładka, matowa, z drobnym ziarnem): szum w skali ułamka milimetra
-  const grain = (x, y) => { let v = 0, a = 0.5, f = 96; for (let o = 0; o < 3; o++, a *= 0.5, f *= 2) v += a * vnoise(x / TS * f, y / TS * f, f); return v; };
-  const leatherNormal = normalCanvas((x, y) => grain(x, y) * 1.4, 1);
-  const leatherColor = canvasTex(TS, (x, y) => 0.95 + 0.05 * heather[y * TS + x], true);
-  leatherColor.repeat.set(6, 2);
   // Szczotkowane aluminium: drobne rysy wzdłuż obwodu (mapa chropowatości)
   const rows = Array.from({ length: 256 }, () => Math.random());
   const brushed = canvasTex(256, (x, y) => 0.8 + 0.12 * rows[y] + 0.08 * Math.random());
@@ -119,7 +114,7 @@ export function buildHalo(renderer) {
 
   const P0 = PALETTES[0];
   // vertexColors: true = mnożenie przez wypalone cieniowanie zagłębień (bakeAO)
-  // Na zdjęciach nic nie błyszczy: ceramika i ekoskóra są matowe, aluminium satynowe (szczotkowane), lustrzana jest tylko wąska fazka przy froncie
+  // Na zdjęciach nic nie błyszczy: ceramika i dzianina są matowe, aluminium satynowe (szczotkowane), lustrzany jest tylko wąski pierścień przy froncie
   const fabric = (rx, ry) => new THREE.MeshPhysicalMaterial({ color: P0.band, map: knitColor(rx, ry), vertexColors: true, roughness: 0.95, sheen: 0.3, sheenRoughness: 0.5, sheenColor: new THREE.Color('#ffffff'), normalMap: knitNormalTex(rx, ry), normalScale: new THREE.Vector2(0.8, 0.8), envMapIntensity: 0.6 });
   const M = {
     ceramic: new THREE.MeshPhysicalMaterial({ color: P0.ceramic, vertexColors: true, roughness: 0.6, clearcoat: 0.08, clearcoatRoughness: 0.5, envMapIntensity: 0.9 }),
@@ -127,8 +122,8 @@ export function buildHalo(renderer) {
     metal: new THREE.MeshPhysicalMaterial({ color: P0.metal, vertexColors: true, metalness: 1, roughness: 0.3, roughnessMap: brushed, envMapIntensity: 1.15 }),
     lip: new THREE.MeshPhysicalMaterial({ color: P0.metal, metalness: 1, roughness: 0.1, envMapIntensity: 1.3 }), // polerowana fazka wokół frontu: cienka jasna linia
     polish: new THREE.MeshPhysicalMaterial({ color: P0.metal, vertexColors: true, metalness: 1, roughness: 0.32, roughnessMap: brushed, envMapIntensity: 1.15 }), // tuleje i przeguby
-    pivot: new THREE.MeshStandardMaterial({ color: '#2a2a2c', metalness: 0.6, roughness: 0.45 }), // ciemny trzpień przegubu w szczelinie nad muszlą
-    cushion: new THREE.MeshPhysicalMaterial({ color: P0.cushion, map: leatherColor, vertexColors: true, roughness: 0.55, normalMap: normalTex(leatherNormal, 6, 2), normalScale: new THREE.Vector2(0.45, 0.45), envMapIntensity: 0.62 }), // bez połysku na krawędziach: brzeg białej poduszki nie zlewa się z jasnym tłem
+    pivot: new THREE.MeshPhysicalMaterial({ color: P0.metal, metalness: 1, roughness: 0.28, roughnessMap: brushed, envMapIntensity: 1.15 }), // trzpień przegubu: srebrny, jak cała reszta połączenia
+    cushion: (() => { const m = fabric(6, 2); m.color.set(P0.cushion); return m; })(), // dzianina jak na pałąku (zdjęcie z hero); powtórzenia całkowite, bo poduszka jest zamknięta w obu kierunkach
     band: fabric(8, 1.5), // splot w większej skali niż na poduszkach: na zdjęciach wzór dzianiny pałąka jest wyraźnie widoczny
     // tkanina akustyczna w otworze poduszki: wyraźny splot, w półcieniu także gdy model jest obrócony otworem do światła
     inner: new THREE.MeshStandardMaterial({ color: P0.inner, map: knitColor(1, 1), normalMap: knitNormalTex(1, 1), normalScale: new THREE.Vector2(1.4, 1.4), vertexColors: true, roughness: 1, envMapIntensity: 0.5, side: THREE.DoubleSide }),
@@ -165,9 +160,9 @@ export function buildHalo(renderer) {
   // generatora 3D (Meshy, z przodu: wysokość poduszki D = 250 px). 1 j. ≈ 5 cm, poduszka Ø ok. 1,98 (= D):
   const R = 0.93;          // promień metalowego pierścienia z tyłu, przy poduszce
   const RF = 0.875;        // promień ceramicznego frontu; pierścień rozszerza się od frontu do tyłu jak szeroka fazka
-  const RC = 0.99;         // poduszka wystaje ponad pierścień (na zdjęciach jej góra jest wyraźnie wyżej niż pierścień)
+  const RC = 1.05;         // poduszka wyraźnie wychodzi spod muszli (zdjęcie z hero: jej brzeg jest dalej niż pierścień)
   const HEAD = 0.62;       // połowa odstępu między poduszkami w połowie wysokości: ok. 0,6 D (generator: 0,53 D przy grubszych poduszkach)
-  const CUSH = 0.5;        // grubość poduszki ok. 0,25 D (zdjęcia: 0,24 D, generator: 0,42 D)
+  const CUSH = 0.56;       // grubość poduszki ok. 0,27 D: pełna, miękka poduszka jak na zdjęciu z hero
   const SHELL = 0.22;      // front + pierścień ok. 0,11 D
   const TILT = THREE.MathUtils.degToRad(10); // generator z przodu: odstęp maleje z 0,53 D do 0,40 D o 1/3 D niżej, czyli ok. 10° na stronę
   const ARM_Z = 0.11;      // przegub stoi na środku pierścienia
@@ -202,16 +197,16 @@ export function buildHalo(renderer) {
   // Poduszka: miękki pierścień o zaokrąglonym przekroju, z owalnym otworem na ucho
   // (otwór ok. 0,57 wysokości poduszki, proporcje 0,57 : 1 — pomiar lewej poduszki na zdjęciu Grafit)
   const AX = 0.33, AY = 0.56;
-  const CUSH_N = 2.6; // przekrój poduszki: mniejsze n = bardziej wypukłe boki
+  const CUSH_N = 2.3; // przekrój poduszki: mniejsze n = bardziej wypukłe boki (dzianina jest napięta na okrągłej piance)
   const holeR = (c, s) => 1 / Math.hypot(c / AX, s / AY);
-  // Szwy: ekoskóra jest zszyta na obu krawędziach strony przy uchu (od zewnątrz i przy otworze). Płytki rowek
+  // Szwy: dzianina jest zszyta na obu krawędziach strony przy uchu (od zewnątrz i przy otworze). Płytki rowek
   // z cieniem rysuje kontur poduszki, więc biała poduszka nie zlewa się w jedną płaską plamę.
   const CUSH_NU = 240, CUSH_NV = 96;
   const SEAMS = [Math.PI * 1.75, Math.PI * 1.25]; // kąty w przekroju: zewnętrzna i wewnętrzna krawędź strony przy uchu
   const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
   const seam = (ph, w) => Math.max(...SEAMS.map((a) => gauss(angDiff(ph, a), w)));
   // Zmarszczki: przy otworze skóra zawija się do środka i układa w nieregularne fałdy (ok. 30 na obwodzie,
-  // każda innej długości i głębokości), jak w prawdziwych nausznikach z pianki pokrytej ekoskórą
+  // każda innej długości i głębokości), jak w prawdziwych nausznikach z pianki pokrytej materiałem (przy dzianinie fałdy są ledwie widoczne)
   const PLEATS = 26;
   const pleatAt = (th, ph) => {
     const w = gauss(angDiff(ph, Math.PI * 1.22), 0.36);   // tylko przy krawędzi otworu: od strony ucha i na ściance
@@ -223,7 +218,7 @@ export function buildHalo(renderer) {
   function cushionGeo() {
     return bakeAO(gridGeo(CUSH_NU, CUSH_NV, (u, v, p) => {
       const th = u * Math.PI * 2, ph = v * Math.PI * 2, c = Math.cos(th), s = Math.sin(th);
-      const ri = holeR(c, s), k = (1 - 0.09 * seam(ph, 0.06)) * (1 + 0.035 * pleatAt(th, ph)); // rowek szwu, wypukłe fałdy
+      const ri = holeR(c, s), k = (1 - 0.05 * seam(ph, 0.06)) * (1 + 0.01 * pleatAt(th, ph)); // płytki rowek szwu, ledwie widoczne fałdy (dzianina się nie marszczy jak skóra)
       const r = (ri + RC) / 2 + k * ((RC - ri) / 2) * se(Math.cos(ph), CUSH_N);
       p.set(r * c, r * s, -CUSH / 2 + k * (CUSH / 2) * se(Math.sin(ph), CUSH_N));
     }, true, true), (p, i) => {
@@ -258,9 +253,10 @@ export function buildHalo(renderer) {
   const nearArm = (p) => gauss(Math.hypot(p.x, p.z + R, p.y - ARM_Z), 0.25);
   function cup() {
     const g = new THREE.Group();
-    const face = lathe([[0, SHELL], [RF - 0.04, SHELL], [RF - 0.012, SHELL - 0.002], [RF - 0.002, SHELL - 0.008]], M.ceramic);
+    const face = lathe([[0, SHELL], [RF - 0.07, SHELL], [RF - 0.05, SHELL - 0.002], [RF - 0.044, SHELL - 0.006]], M.ceramic);
     bakeAO(face.geometry, (p) => 1 - 0.2 * nearArm(p)); // cień przegubu na górze frontu
-    const lip = lathe([[RF - 0.006, SHELL - 0.006], [RF + 0.006, SHELL - 0.01], [RF + 0.02, SHELL - 0.022]], M.lip);
+    // polerowany pierścień wokół ceramiki (jak na zdjęciu z hero): szeroki ok. 3 mm, wystaje odrobinę ponad front
+    const lip = lathe([[RF - 0.05, SHELL - 0.004], [RF - 0.046, SHELL + 0.008], [RF - 0.03, SHELL + 0.014], [RF, SHELL + 0.012], [RF + 0.016, SHELL + 0.002], [RF + 0.024, SHELL - 0.014], [RF + 0.026, SHELL - 0.024]], M.lip);
     const ring = lathe([[RF + 0.016, SHELL - 0.02], [RF + 0.03, SHELL - 0.03], [R + 0.01, 0.06], [R + 0.012, 0.035], [R, 0.012], [R - 0.05, 0]], M.metal);
     bakeAO(ring.geometry, (p) => (1 - 0.6 * Math.exp(-p.y / 0.05)) * (1 - 0.5 * nearArm(p)));
     g.add(face, lip, ring, mesh(cushionGeo(), M.cushion));
@@ -283,8 +279,8 @@ export function buildHalo(renderer) {
   // Tuleja: wchodzi od dołu w zaokrąglony koniec pałąka; tam, gdzie znika w dzianinie, i przy przegubie jest ciemniejsza
   const sleeveGeo = bakeAO(columnGeo(SLV.hx, SLV.hz, STEM_TOP + 0.01, SLEEVE_TOP + 0.14, 2.6, 0.012),
     (p) => (1 - 0.35 * Math.exp(-(p.y - STEM_TOP) / 0.03)) * (1 - 0.5 * Math.exp(-Math.max(SLEEVE_TOP + 0.01 - p.y, 0) / 0.03) * (p.y > SLEEVE_TOP - 0.05 ? 1 : 0)));
-  // Przegub: odrobinę węższy; pod nim ciemny trzpień i szczelina nad pierścieniem, która oddziela metal od muszli
-  const stemGeo = bakeAO(columnGeo(STEM.hx, STEM.hz, STEM_Y0, STEM_TOP, 2.6, 0.012), (p) => (1 - 0.5 * Math.exp(-(p.y - STEM_Y0) / 0.035)) * (1 - 0.25 * Math.exp(-(STEM_TOP - p.y) / 0.025)));
+  // Przegub: odrobinę węższy; pod nim srebrny trzpień i wąska szczelina nad pierścieniem (lekki cień, bez czarnego pasa)
+  const stemGeo = bakeAO(columnGeo(STEM.hx, STEM.hz, STEM_Y0, STEM_TOP, 2.6, 0.012), (p) => (1 - 0.2 * Math.exp(-(p.y - STEM_Y0) / 0.035)) * (1 - 0.25 * Math.exp(-(STEM_TOP - p.y) / 0.025)));
 
   const halo = new THREE.Group(), tilts = {};
   [-1, 1].forEach((side) => {
