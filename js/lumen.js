@@ -44,7 +44,7 @@ const hemi = new THREE.HemisphereLight(0xffffff, 0xd8d4cc, 0.2);
 scene.add(sun, hemi);
 
 const MODEL_H = 3.65;
-const { halo, M, anchors, guides } = buildHalo(renderer);
+const { halo, M, anchors } = buildHalo(renderer);
 centerHalo(halo, MODEL_H);
 const pivot = new THREE.Group();
 pivot.add(halo);
@@ -73,12 +73,6 @@ const fitRect = (r, maxS, hk = 1, wk = 0.85) => {
 };
 const FEAT_H = 190; // wysokość opisu cechy na dole ekranu (telefon)
 const P = {
-  // budowa ze światła: model na środku stożka, lekko z przodu, żeby było widać oba pierścienie
-  b: () => {
-    if (!L.mobile) return pose({ py: -0.62, rx: 0.1, ry: -0.55, s: 0.78 });
-    const f = fitIn(rel('.anat-head', '#design').bottom + 8, innerHeight - 40, 0.8);
-    return pose({ py: f.py, rx: 0.1, ry: -0.55, s: f.s });
-  },
   // Anatomia: model przesunięty od strony opisu; obrót pokazuje opisywaną część
   ...Object.fromEntries([
     [-0.13, -0.62, 0.12, -1.0, 0.78], [0.13, -0.62, 0.05, -1.42, 0.8], [0.13, -0.8, 0.55, -0.3, 0.8], [-0.15, -1.05, 0.2, -0.62, 0.98], [0.13, -0.62, 0.1, -0.6, 0.8],
@@ -101,7 +95,7 @@ const P = {
   end: () => ({ ...P.day(), alpha: 0 }),
 };
 const KEYS = Object.keys(BASE);
-const rig = { ...P.b(), wave: 0, vis: 1 }; // vis: zanikanie przy przenosinach modelu między sekcjami
+const rig = { ...P.a0(), wave: 0, vis: 1, ent: 0 }; // vis: zanikanie przy przenosinach modelu między sekcjami
 const drag = { x: 0, y: 0 };
 const appear = { v: 0 };
 
@@ -115,50 +109,51 @@ function layout() {
   camera.updateProjectionMatrix();
   lastLight = '';
 }
-// ---------- Start i Anatomia: słuchawki powstają ze światła ----------
-// Start to zdjęcie (warstwa .photo). Przy przewijaniu światło z okna odrywa się od zdjęcia (warstwa .light: dwie plamy
-// w miejscach plam na zdjęciu), przesuwa się i zwęża w stożek, a zdjęcie gaśnie w szarość. W Anatomii ze szczytu stożka
-// spadają dwie wiązki i zawijają się w pierścienie (Halo), trzecia rysuje pałąk, a potem materiały „skraplają się”
-// ze światła: aluminium, ceramika, poduszki, dzianina. Wiązki to rurki odsłaniane wzdłuż długości, bryła to próg szumu w shaderze.
-const ANAT_BG = '#e9e8e5', DIM_BG = '#cfcdc9';
-const WALL = [[335, 0], [790, 0], [1440, 325], [1440, 640], [560, 548]];   // plama na ścianie, w pikselach zdjęcia 1440 × 900
-const FLOOR = [[0, 600], [560, 548], [1000, 665], [860, 900], [0, 800]];   // plama na podłodze
-const photoEl = $('.photo'), lightEl = $('.light'), lightP = $$('.light i');
-// współrzędne zdjęcia → ekran, jak przy background-size: cover (na telefonie zdjęcie jest przesunięte, żeby było widać słuchawki)
-const photoPt = ([x, y]) => {
-  const k = Math.max(innerWidth / 1440, innerHeight / 900);
-  return [(innerWidth - 1440 * k) * (L.mobile ? 0.74 : 0.5) + x * k, (innerHeight - 900 * k) * 0.5 + y * k];
-};
-const conePts = () => {
-  const w = Math.min(innerWidth * (L.mobile ? 0.9 : 0.64), 860), l = innerWidth / 2 - w / 2, top = -0.08 * innerHeight, h = 0.92 * innerHeight;
-  return [[l + 0.36 * w, top], [l + 0.64 * w, top], [l + 0.75 * w, top + 0.5 * h], [l + 0.86 * w, top + h], [l + 0.14 * w, top + h]];
-};
+// ---------- Start i Anatomia: zdjęcie gaśnie, zostaje smuga światła, a w niej pojawiają się słuchawki ----------
+// Start to zdjęcie (warstwa .photo). Przy przewijaniu najpierw gaśnie tekst, potem zdjęcie, a pod koniec pojawia się
+// wąska, miękka smuga światła (.light). Tekst Anatomii wjeżdża dopiero na czyste tło. Słuchawki pojawiają się w smudze
+// na jeden z pięciu sposobów (przełącznik .variants, parametr ?wejscie=1–5), żeby porównać je na żywo.
+const ANAT_BG = '#e9e8e5';
+const photoEl = $('.photo'), lightEl = $('.light');
 let lastLight = '';
-function setLight(m, a, photo) {
-  const c = conePts(), poly = (src) => 'polygon(' + src.map((p, i) => { const q = photoPt(p); return lerp(q[0], c[i][0], m).toFixed(1) + 'px ' + lerp(q[1], c[i][1], m).toFixed(1) + 'px'; }).join(',') + ')';
-  const key = [m, a, photo].map((v) => v.toFixed(3)).join();
+function setLight(a, photo) {
+  const key = a.toFixed(3) + photo.toFixed(3);
   if (key === lastLight) return;
   lastLight = key;
   lightEl.style.visibility = a > 0.002 ? 'visible' : 'hidden';
-  if (a > 0.002) {
-    lightP[0].style.clipPath = poly(WALL);
-    lightP[1].style.clipPath = poly(FLOOR);
-    lightP[1].style.opacity = 1 - smooth(m / 0.7);
-    lightEl.style.opacity = a;
-    lightEl.style.filter = `blur(${lerp(10, 44, m * m).toFixed(1)}px)`; // plamy z okna są ostre, stożek miękki
-    lightEl.style.setProperty('--mb', lerp(1, 0.12, m).toFixed(3)); // stożek u dołu rozpływa się w tle
-  }
+  lightEl.style.opacity = a;
   photoEl.style.visibility = photo > 0.002 ? 'visible' : 'hidden';
   photoEl.style.opacity = photo;
-  // światło „odrywa się” od zdjęcia: zdjęcie lekko ciemnieje, a jasne plamy niesie już warstwa światła
-  photoEl.style.filter = `brightness(${lerp(1, 0.7, smooth(a / 0.75)).toFixed(3)})`;
 }
 
-// Bryła wyłania się z szumu: piksele powyżej progu są odrzucane, a przy samym progu świecą
-const FILL = { metal: { value: 1 }, ceramic: { value: 1 }, cushion: { value: 1 }, band: { value: 1 } };
-const FILL_OF = { ceramic: 'ceramic', metal: 'metal', lip: 'metal', polish: 'metal', pivot: 'metal', cushion: 'cushion', inner: 'cushion', band: 'band' };
+const ENTRANCES = [
+  { name: 'Ostrość', note: 'z rozmycia do ostrości, jak obiektyw' },
+  { name: 'Przenikanie', note: 'łagodne pojawienie się z lekkim uniesieniem' },
+  { name: 'Światło z boku', note: 'rozproszone światło z lewej odsłania bryłę' },
+  { name: 'Prześwietlenie', note: 'biała, prześwietlona sylwetka nabiera szczegółów' },
+  { name: 'Ziarno światła', note: 'bryła zbiera się z drobnego, świetlistego ziarna' },
+];
+let entrance = clamp(+(new URLSearchParams(location.search).get('wejscie') || 1), 1, 5) | 0;
+{
+  const box = $('#variants');
+  ENTRANCES.forEach((e, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.innerHTML = `${i + 1}<em> · ${e.name}</em>`; b.title = `${e.name}: ${e.note}`;
+    b.setAttribute('aria-pressed', String(i + 1 === entrance));
+    b.addEventListener('click', () => {
+      entrance = i + 1;
+      $$('button', box).forEach((x, k) => x.setAttribute('aria-pressed', String(k === i)));
+      history.replaceState(null, '', '?wejscie=' + entrance + location.hash);
+    });
+    box.appendChild(b);
+  });
+}
+
+// Wejścia 3 i 5 odsłaniają bryłę w shaderze: piksele powyżej progu są odrzucane, a przy samym progu świecą.
+// 3: próg biegnie w poprzek ekranu od strony światła (współrzędna x w świecie + szum), 5: próg samego szumu.
+const FILL = { value: 1 }, FMODE = { value: 0 }, FX = { value: new THREE.Vector2(-3, 3) };
 const FILL_GLSL = `
-uniform float uFill; varying vec3 vFillP;
+uniform float uFill, uFMode; uniform vec2 uFX; varying vec3 vFillP, vFillW;
 float fillHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float fillNoise(vec3 p) {
   vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -167,101 +162,45 @@ float fillNoise(vec3 p) {
 }
 `;
 Object.entries(M).forEach(([k, m]) => {
-  const u = FILL[FILL_OF[k] || 'metal'];
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uFill = u;
-    sh.vertexShader = 'varying vec3 vFillP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vFillP = transformed;');
+    Object.assign(sh.uniforms, { uFill: FILL, uFMode: FMODE, uFX: FX });
+    sh.vertexShader = 'varying vec3 vFillP, vFillW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vFillP = transformed; vFillW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = FILL_GLSL + sh.fragmentShader
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-  float fN = 0.65 * fillNoise(vFillP * 6.0) + 0.35 * fillNoise(vFillP * 23.0), fT = uFill * 1.3 - 0.15;
-  if (fN > fT) discard;`)
+  float fN = 0.65 * fillNoise(vFillP * 6.0) + 0.35 * fillNoise(vFillP * 23.0), fV = 0.0, fT = 1.0;
+  if (uFMode > 0.5) {
+    if (uFMode < 1.5) { fV = (vFillW.x - uFX.x) / (uFX.y - uFX.x) + (fN - 0.5) * 0.45; fT = uFill * 1.5 - 0.25; }
+    else { fV = fN; fT = uFill * 1.3 - 0.15; }
+    if (fV > fT) discard;
+  }`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-  totalEmissiveRadiance += vec3(1.0, 0.97, 0.9) * 2.2 * (1.0 - smoothstep(0.0, 0.07, fT - fN)) * step(uFill, 0.999);`);
+  totalEmissiveRadiance += vec3(1.0, 0.97, 0.9) * 1.6 * (1.0 - smoothstep(0.0, 0.08, fT - fV)) * step(0.5, uFMode) * step(uFill, 0.999);`);
   };
   m.customProgramCacheKey = () => 'fill-' + k;
 });
 
-// Wiązki: cienki rdzeń i poświata (addytywna, gaśnie ku brzegom rurki); na czele każdej wiązki jasny błysk.
-// Wiązki spadające ze stożka wyłaniają się z jego jasności: uIn to część długości, na której rośnie krycie.
-const beams = new THREE.Group();
-beams.visible = false;
-pivot.add(beams);
-const beamA = { value: 1 };
-const beamMat = (glow, fadeIn) => new THREE.ShaderMaterial({
-  transparent: true, depthWrite: false, toneMapped: false, blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
-  uniforms: { uA: beamA, uIn: { value: fadeIn }, uGlow: { value: glow ? 1 : 0 } },
-  vertexShader: `varying float vF, vU;
-    void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vF = abs(dot(normalize(normalMatrix * normal), normalize(-mv.xyz))); vU = uv.x; gl_Position = projectionMatrix * mv; }`,
-  fragmentShader: `uniform float uA, uIn, uGlow; varying float vF, vU;
-    void main() {
-      float a = uA * (uIn > 0.0 ? smoothstep(0.0, uIn, vU) : 1.0) * mix(1.0, pow(vF, 2.0) * 0.5, uGlow);
-      gl_FragColor = vec4(vec3(1.0, 0.98, 0.93), a);
-    }`,
-});
-const sparkTex = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,250,235,0.6)'); r.addColorStop(1, 'rgba(255,250,235,0)');
-  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-})();
-const BEAM_SEG = 6 * 8; // indeksy na jeden odcinek rurki (8 ścian)
-let beamList = [];
-function tube(curve, segs, r, mat) {
-  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, segs, r, 8, false), mat);
-  m.frustumCulled = false; m.renderOrder = 3;
-  return m;
-}
-// Ścieżki w układzie obracanej grupy (pivot), liczone dla ujęcia budowy; przeliczane przy zmianie rozmiaru ekranu
-function buildBeams() {
-  beamList.forEach((b) => [b.core, b.glow].forEach((m) => { m.geometry.dispose(); m.material.dispose(); }));
-  beams.clear(); beamList = [];
-  const b = POSES.b, G = guides;
-  pivot.updateMatrixWorld(true);
-  const toPivot = new THREE.Matrix4().copy(pivot.matrixWorld).invert();
-  const at = (obj, x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(obj.matrixWorld).applyMatrix4(toPivot);
-  const poseInv = new THREE.Matrix4().compose(new THREE.Vector3(b.px, b.py, b.pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(b.rx, b.ry, b.rz, 'YXZ')), new THREE.Vector3(b.s, b.s, b.s)).invert();
-  const top = (s) => at(G.cups[s], 0, G.ringR, G.ringH);
-  const add = (pts, segs, fadeIn = 0) => {
-    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
-    const core = tube(curve, segs, 0.008, beamMat(false, fadeIn)), glow = tube(curve, segs, 0.045, beamMat(true, fadeIn));
-    const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-    spark.scale.setScalar(0.38);
-    beams.add(core, glow, spark);
-    beamList.push({ curve, segs, core, glow, spark });
-  };
-  [1, -1].forEach((s) => {
-    // ze szczytu stożka (u góry ekranu, nad środkiem) prosto w dół do szczytu pierścienia, potem dookoła pierścienia
-    const apex = new THREE.Vector3(b.px + s * 0.1, halfH() * 1.08 + 0.3, 0).applyMatrix4(poseInv), t = top(s), pts = [];
-    for (let k = 0; k <= 10; k++) pts.push(apex.clone().lerp(t, k / 10));
-    for (let k = 1; k <= 96; k++) { const a = Math.PI / 2 + s * k / 96 * Math.PI * 2.04; pts.push(at(G.cups[s], G.ringR * Math.cos(a), G.ringR * Math.sin(a), G.ringH)); }
-    add(pts, 300, 0.22);
-  });
-  // pałąk: z prawego pierścienia w górę tulei, łukiem pałąka i w dół tulei do lewego pierścienia
-  const pts = [top(1)];
-  for (let k = 0; k <= 4; k++) pts.push(at(G.tilts[1], G.stemX, lerp(G.stemY0, G.sleeveTop, k / 4), 0));
-  for (let k = 1; k < 60; k++) pts.push(G.arc.getPointAt(k / 60).applyMatrix4(halo.matrixWorld).applyMatrix4(toPivot));
-  for (let k = 4; k >= 0; k--) pts.push(at(G.tilts[-1], -G.stemX, lerp(G.stemY0, G.sleeveTop, k / 4), 0));
-  pts.push(top(-1));
-  add(pts, 260);
-}
+// Wejście 3: rozproszone smugi światła wpadające z lewej, jak przez okno
+const sideEl = document.createElement('div');
+sideEl.className = 'sidelight';
+sideEl.setAttribute('aria-hidden', 'true');
+lightEl.after(sideEl);
+
 let shadowsOn = true;
-function setBuild(bt) {
-  const f = (a, c) => smooth(seg(bt, a, c));
-  FILL.metal.value = f(0.45, 0.66); FILL.ceramic.value = f(0.55, 0.76); FILL.cushion.value = f(0.63, 0.84); FILL.band.value = f(0.7, 0.92);
-  // cienie tylko z gotowej bryły (mapa cieni nie zna progu szumu)
-  const done = bt >= 0.999;
-  if (done !== shadowsOn) { halo.traverse((o) => { if (o.isMesh) o.castShadow = done; }); shadowsOn = done; }
-  const fade = 1 - seg(bt, 0.82, 1), prog = [io(seg(bt, 0.02, 0.4)), io(seg(bt, 0.02, 0.4)), io(seg(bt, 0.36, 0.62))];
-  beams.visible = bt > 0.02 && fade > 0;
-  if (!beams.visible) return;
-  beamA.value = fade;
-  beamList.forEach((b, i) => {
-    const n = Math.round(prog[i] * b.segs) * BEAM_SEG;
-    b.core.geometry.setDrawRange(0, n); b.glow.geometry.setDrawRange(0, n);
-    b.spark.visible = prog[i] > 0.001 && prog[i] < 0.999;
-    if (b.spark.visible) b.curve.getPointAt(prog[i], b.spark.position);
-  });
+// e: postęp wejścia 0–1. Zwraca zmiany ujęcia i krycie płótna; ustawia shader, filtr płótna i ekspozycję.
+function setEntrance(e) {
+  const v = e >= 1 ? 0 : entrance, done = v === 0;
+  if (done !== shadowsOn) { halo.traverse((o) => { if (o.isMesh) o.castShadow = done; }); shadowsOn = done; } // mapa cieni nie zna progu szumu
+  FMODE.value = v === 3 ? 1 : v === 5 ? 2 : 0;
+  FILL.value = v === 3 ? smooth(seg(e, 0.1, 0.9)) : v === 5 ? smooth(seg(e, 0.05, 0.9)) : 1;
+  canvas.style.filter = v === 1 ? `blur(${(28 * (1 - smooth(e)) ** 1.5).toFixed(2)}px)` : '';
+  renderer.toneMappingExposure = v === 4 ? lerp(6, 1.05, smooth(seg(e, 0.15, 1))) : 1.05;
+  sideEl.style.opacity = v === 3 ? (Math.sin(Math.PI * clamp(e * 1.1, 0, 1)) * 0.9).toFixed(3) : 0;
+  sideEl.style.transform = `translateX(${lerp(-12, 6, e).toFixed(2)}vw)`;
+  const turn = 0.35 * (1 - io(e)); // we wszystkich wariantach model lekko dokręca do pierwszego ujęcia
+  if (v === 1) return { a: smooth(seg(e, 0, 0.6)), turn, lift: 0, scale: 1 };
+  if (v === 2) return { a: smooth(seg(e, 0, 0.8)), turn, lift: -0.35 * (1 - io(e)), scale: 0.94 + 0.06 * io(e) };
+  if (v === 4) return { a: smooth(seg(e, 0, 0.3)), turn, lift: 0, scale: 1 };
+  return { a: v === 0 ? 1 : smooth(seg(e, 0, 0.12)), turn: v === 0 ? 0 : turn, lift: 0, scale: 1 };
 }
 
 // ---------- Lekkość: słuchawki rozsypują się w drobinki, które składają się w piórko ----------
@@ -520,12 +459,11 @@ const B = {};            // granice sekcji w pikselach przewijania
 let POSES = null;        // ujęcia policzone dla bieżącego rozmiaru ekranu
 function measure() {
   const g = (id) => ScrollTrigger.getById(id);
-  Object.assign(B, { dS: g('design').start, dE: g('design').end, lS: g('lek').start, lE: g('lek').end, kS: g('kol').start, yS: g('day').start, yE: g('day').end });
+  Object.assign(B, { hE: g('hero').end, dS: g('design').start, dE: g('design').end, lS: g('lek').start, lE: g('lek').end, kS: g('kol').start, yS: g('day').start, yE: g('day').end });
   B.eE = B.yE + innerHeight * 0.65;
   POSES = Object.fromEntries(Object.keys(P).map((k) => [k, P[k]()]));
-  buildBeams();
 }
-const AN_0 = 1.8, AN_U = AN_0 + 5; // Anatomia: budowa ze światła, potem 5 cech po 1 jednostce
+const AN_0 = 1.4, AN_U = AN_0 + 5; // Anatomia: wejście słuchawek (0–1,2), potem 5 cech po 1 jednostce
 const io = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2); // power2.inOut
 const seg = (y, a, b) => clamp((y - a) / (b - a), 0, 1);
 const mixPose = (a, b, t) => Object.fromEntries(KEYS.map((k) => [k, lerp(a[k], b[k], t)]));
@@ -534,29 +472,25 @@ const mixCol = (a, b, t) => cA.set(a).lerp(cB.set(b), t).getHexString();
 const dipAt = (t) => (t < 0.5 ? 1 - smooth((t - 0.05) / 0.35) : smooth((t - 0.6) / 0.35)); // zanika w połowie przenosin
 
 function scrollState(y) {
-  const S = { wave: 0, vis: 1, bg: null, day: null, anat: -1, build: 1, light: 0, cone: 1, photo: 0 };
+  const S = { wave: 0, vis: 1, bg: null, day: null, anat: -1, ent: 1, light: 0, photo: 0 };
   if (y < B.dS) {
-    // Start: światło z okna odrywa się od zdjęcia i zwęża w stożek, zdjęcie gaśnie w szarość; modelu jeszcze nie ma
-    S.pose = POSES.b; S.build = 0;
-    S.cone = io(seg(y, B.dS * 0.22, B.dS));
-    S.light = lerp(0.75 * smooth(seg(y, 0, B.dS * 0.25)), 0.6, S.cone);
-    S.photo = 1 - smooth(seg(y, B.dS * 0.45, B.dS * 0.95));
-    S.bg = mixCol('#efebe5', DIM_BG, seg(y, B.dS * 0.45, B.dS * 0.95));
+    // Start (przypięty): najpierw gaśnie tekst (oś czasu), potem zdjęcie, a pod koniec pojawia się smuga światła.
+    // Potem Anatomia wjeżdża już na czyste tło; modelu jeszcze nie ma.
+    const t = seg(y, 0, B.hE);
+    S.pose = POSES.a0; S.ent = 0;
+    S.photo = 1 - smooth(seg(t, 0.3, 0.72));
+    S.light = 0.85 * smooth(seg(t, 0.55, 1));
+    S.bg = mixCol('#efebe5', ANAT_BG, seg(t, 0.3, 0.72));
   }
   else if (y <= B.dE) {
-    // Anatomia: budowa ze światła (0–1,4), obrót do pierwszego ujęcia (do 1,9), potem 5 cech od 1,8;
-    // przejście do kroku i trwa od i − 0,3 do i + 0,2 (licząc od 1,8)
-    const u = seg(y, B.dS, B.dE) * AN_U, lit = smooth(seg(u, 0.7, 1.33));
-    S.build = seg(u, 0, 1.4);
-    S.light = lerp(0.6, 0.95, lit) * (1 - seg(u, AN_U - 0.25, AN_U));
-    S.bg = mixCol(DIM_BG, ANAT_BG, lit);
-    if (u < 1.9) S.pose = mixPose(POSES.b, POSES.a0, io(seg(u, 0.75, 1.9)));
-    else {
-      const v = u - AN_0;
-      let i = 0; while (i < 4 && v >= i + 0.7) i++;
-      S.pose = i ? mixPose(POSES['a' + (i - 1)], POSES['a' + i], io(clamp((v - (i - 0.3)) / 0.5, 0, 1))) : POSES.a0;
-    }
-    S.anat = u >= AN_0 ? Math.min(4, Math.floor(u - AN_0)) : -1;
+    // Anatomia: wejście słuchawek (0–1,2), potem 5 cech od AN_0; przejście do kroku i trwa od i − 0,3 do i + 0,2
+    const u = seg(y, B.dS, B.dE) * AN_U, v = u - AN_0;
+    S.ent = seg(u, 0, 1.2);
+    S.light = 0.85 * (1 - seg(u, AN_U - 0.25, AN_U));
+    S.bg = ANAT_BG.slice(1);
+    let i = 0; while (i < 4 && v >= i + 0.7) i++;
+    S.pose = i ? mixPose(POSES['a' + (i - 1)], POSES['a' + i], io(clamp((v - (i - 0.3)) / 0.5, 0, 1))) : POSES.a0;
+    S.anat = v >= 0 ? Math.min(4, Math.floor(v)) : -1;
   }
   else if (y < B.lS) { const t = seg(y, B.dE, B.lS); S.pose = mixPose(POSES.a4, POSES.lek, t); S.bg = mixCol(ANAT_BG, '#e6e6ea', t); }
   else if (y <= B.lE) {
@@ -599,14 +533,22 @@ function setDay(h) {
 }
 
 // ---------- Pętla ----------
-let lastBg = '', lastDot = -2, dayActive = false;
+let lastBg = '', lastDot = -2, dayActive = false, variantsOn = false, lastHead = '';
+const headKids = $$('.anat-head > *');
 function frame(time) {
   const t = time;
   if (POSES) {
     const S = scrollState(window.scrollY);
+    const ent = setEntrance(S.ent);
     Object.assign(rig, S.pose); rig.wave = S.wave; rig.vis = S.vis;
-    setBuild(S.build);
-    setLight(S.cone, S.light, S.photo);
+    rig.ry += ent.turn; rig.py += ent.lift; rig.s *= ent.scale; rig.ent = ent.a;
+    FX.value.set(rig.px - 0.45 * MODEL_H * rig.s, rig.px + 0.45 * MODEL_H * rig.s); // szerokość modelu w świecie: tędy biegnie próg wejścia 3
+    setLight(S.light, S.photo);
+    // nagłówek Anatomii wjeżdża na czyste tło i łagodnie się pojawia (dzieci, bo całość gasi oś czasu na końcu sekcji)
+    const hIn = smooth(seg(window.scrollY, B.dS - innerHeight * 0.8, B.dS - innerHeight * 0.1)).toFixed(3);
+    if (hIn !== lastHead) { headKids.forEach((el) => { el.style.opacity = hIn; el.style.transform = `translateY(${(1 - hIn) * 40}px)`; }); lastHead = hIn; }
+    const showV = window.scrollY > B.hE * 0.6 && window.scrollY < B.dE;
+    if (showV !== variantsOn) { $('#variants').classList.toggle('show', showV); variantsOn = showV; }
     if (S.day != null) setDay(S.day);
     dayActive = S.day != null;
     const bg = dayActive ? dayLight.bg : S.bg;
@@ -641,21 +583,21 @@ function frame(time) {
     pivot.updateMatrixWorld(true);
     clipWorld.copy(clipLocal).applyMatrix4(pivot.matrixWorld);
   }
-  canvas.style.opacity = rig.alpha * rig.vis * appear.v;
+  canvas.style.opacity = rig.alpha * rig.vis * appear.v * rig.ent;
   renderer.render(scene, camera);
   drawLeader();
 }
 
 // ---------- Przewijanie: przypięcia sekcji i teksty ----------
 function timelines() {
-  // 1. Start: tekst odjeżdża, a światło zaczyna się przesuwać (scrollState)
-  gsap.timeline({ scrollTrigger: { id: 'hero', trigger: '#start', start: 'top top', end: '+=70%', pin: true, scrub: SCRUB } })
-    .to('.hero-copy', { y: -80, autoAlpha: 0, duration: 0.45, ease: 'power1.in' }, 0)
-    .to('.scroll-cue', { autoAlpha: 0, duration: 0.1 }, 0)
+  // 1. Start: delikatnie gaśnie tekst; zdjęcie i smuga światła są w scrollState
+  gsap.timeline({ scrollTrigger: { id: 'hero', trigger: '#start', start: 'top top', end: '+=160%', pin: true, scrub: SCRUB } })
+    .to('.hero-copy', { y: -24, autoAlpha: 0, duration: 0.28, ease: 'power1.out' }, 0)
     .to({}, { duration: 1 }, 0);
 
-  // 2. Anatomia: przypięta; najpierw budowa ze światła, potem 5 kroków, w każdym jedna cecha
-  const tA = gsap.timeline({ scrollTrigger: { id: 'design', trigger: '#design', start: 'top top', end: '+=580%', pin: true, scrub: SCRUB } });
+  // 2. Anatomia: przypięta; najpierw wejście słuchawek, potem 5 kroków, w każdym jedna cecha
+  // (pojawianie się nagłówka przy wjeździe sekcji liczy pętla, żeby działało też po skoku w środek strony)
+  const tA = gsap.timeline({ scrollTrigger: { id: 'design', trigger: '#design', start: 'top top', end: '+=545%', pin: true, scrub: SCRUB } });
   feats.forEach((el, i) => {
     tA.fromTo(el, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.2, immediateRender: false }, AN_0 + (i ? i + 0.12 : 0.05))
       .to(el, { autoAlpha: 0, y: -24, duration: 0.18 }, AN_0 + i + 0.72);
@@ -684,7 +626,6 @@ function timelines() {
   // menu: podświetlenie bieżącej sekcji
   const links = $$('.menu a');
   links.forEach((a) => ScrollTrigger.create({ trigger: a.getAttribute('href'), start: 'top 55%', end: 'bottom 55%', onToggle: (s) => a.classList.toggle('on', s.isActive) }));
-  ScrollTrigger.create({ start: 8, end: 'max', onToggle: (s) => $('#nav').classList.toggle('solid', s.isActive) });
   ScrollTrigger.addEventListener('refresh', measure);
 }
 

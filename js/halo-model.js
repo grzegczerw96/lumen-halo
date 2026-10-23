@@ -286,7 +286,7 @@ export function buildHalo(renderer) {
   // Przegub: odrobinę węższy; pod nim ciemny trzpień i szczelina nad pierścieniem, która oddziela metal od muszli
   const stemGeo = bakeAO(columnGeo(STEM.hx, STEM.hz, STEM_Y0, STEM_TOP, 2.6, 0.012), (p) => (1 - 0.5 * Math.exp(-(p.y - STEM_Y0) / 0.035)) * (1 - 0.25 * Math.exp(-(STEM_TOP - p.y) / 0.025)));
 
-  const halo = new THREE.Group(), tilts = {}, cups = {};
+  const halo = new THREE.Group(), tilts = {};
   [-1, 1].forEach((side) => {
     const tilt = new THREE.Group(); // pochylenie wokół krawędzi poduszki: dół muszli idzie do środka
     tilt.position.x = side * (HEAD + CUSH);
@@ -294,7 +294,6 @@ export function buildHalo(renderer) {
     const c = cup();
     c.rotation.y = side * Math.PI / 2;
     tilt.add(c);
-    cups[side] = c;
     const stem = mesh(stemGeo, M.polish);
     stem.position.x = side * ARM_Z;
     const pin = mesh(new THREE.CylinderGeometry(0.065, 0.065, STEM_Y0 - R + 0.04, 24), M.pivot);
@@ -339,11 +338,7 @@ export function buildHalo(renderer) {
     foam: anchor(tilts[-1], CUSH + 0.005, -0.6, 0.38),               // poduszka lewej muszli od strony ucha
   };
 
-  // Prowadnice do animacji (np. wiązki światła w lumen.html): krawędź pierścienia w układzie muszli (okrąg o promieniu
-  // ringR na wysokości ringH, góra przy y = +ringR), oś tulei w układzie pochylenia i oś pałąka w układzie słuchawek.
-  const guides = { cups, tilts, ringR: R + 0.012, ringH: 0.05, stemX: ARM_Z, stemY0: STEM_Y0, sleeveTop: SLEEVE_TOP + 0.14, arc };
-
-  return { halo, M, anchors, guides };
+  return { halo, M, anchors };
 }
 
 // Skaluje model do zadanej wysokości i ustawia jego środek w (0, 0, 0) grupy-rodzica.

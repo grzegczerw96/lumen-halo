@@ -21,7 +21,7 @@
   --accent: #0066cc;
   --font: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --pad: max(24px, 4.5vw);
-  --nav-h: 56px;
+  --nav-h: 76px;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
@@ -32,12 +32,22 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .backdrop { position: fixed; inset: 0; z-index: 0; background: #efebe5; }
-/* Start: zdjęcie i światło z okna. Warstwa światła ma dwie plamy (ściana, podłoga) w miejscach plam na zdjęciu;
-   przy przewijaniu przesuwają się i zwężają w stożek nad Anatomią. Kształt przycina element wewnętrzny, a rozmycie
-   działa na zewnętrznym, więc krawędzie są miękkie. */
+/* Start: zdjęcie. Przy przewijaniu najpierw gaśnie tekst, potem zdjęcie, a pod koniec pojawia się wąska, miękka smuga
+   światła z góry, która zostaje nad Anatomią. Kształt przycina element wewnętrzny, a rozmycie działa na zewnętrznym,
+   więc krawędzie są miękkie; maska rozpuszcza smugę ku dołowi. */
 .photo { position: fixed; inset: 0; z-index: 0; background: #efebe5 url(img/hero.jpg) 50% 50% / cover no-repeat; }
-.light { --mb: 1; position: fixed; inset: 0; z-index: 0; pointer-events: none; visibility: hidden; -webkit-mask-image: linear-gradient(#000, rgba(0,0,0,var(--mb))); mask-image: linear-gradient(#000, rgba(0,0,0,var(--mb))); }
-.light i { position: absolute; inset: 0; background: #fffdf8; }
+.light { position: fixed; left: 50%; top: -6vh; width: min(70vw, 900px); height: 96vh; transform: translateX(-50%); z-index: 0; pointer-events: none; visibility: hidden; opacity: 0; filter: blur(48px); -webkit-mask-image: linear-gradient(#000 20%, transparent); mask-image: linear-gradient(#000 20%, transparent); }
+.light i { position: absolute; inset: 0; background: #fffefb; clip-path: polygon(44% 0, 56% 0, 71% 100%, 29% 100%); }
+/* wejście 3: rozproszone smugi światła wpadające z lewej (krycie i przesunięcie ustawia skrypt) */
+.sidelight { position: fixed; left: -10vw; top: -10vh; width: 80vw; height: 120vh; z-index: 0; pointer-events: none; opacity: 0; filter: blur(36px); background: repeating-linear-gradient(105deg, rgba(120,112,100,.12) 0 4vw, rgba(255,254,250,.95) 6vw 10vw, rgba(120,112,100,.12) 12vw 16vw); /* jasne pasy przedzielone półcieniem, jak światło przez okno */ -webkit-mask-image: linear-gradient(90deg, #000 30%, transparent); mask-image: linear-gradient(90deg, #000 30%, transparent); }
+/* przełącznik wariantów wejścia słuchawek (tylko prototyp) */
+.variants { position: fixed; left: 16px; bottom: 16px; z-index: 11; display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 14px; border-radius: 999px; background: rgba(255,255,255,.85); box-shadow: inset 0 0 0 1px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.12); backdrop-filter: blur(12px); font-size: 12px; transition: opacity .3s, visibility .3s; opacity: 0; visibility: hidden; max-width: calc(100vw - 32px); overflow-x: auto; }
+.variants.show { opacity: 1; visibility: visible; }
+.variants span { color: var(--muted); white-space: nowrap; margin-right: 4px; }
+.variants button { border: 0; background: none; padding: 7px 11px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.variants button[aria-pressed="true"] { background: #111; color: #fff; }
+.variants em { font-style: normal; }
+@media (max-width: 760px) { .variants { left: 50%; transform: translateX(-50%); bottom: 8px; } .variants em { display: none; } .variants button { padding: 7px 12px; } }
 #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100lvh; z-index: 1; pointer-events: none; opacity: 0; }
 .lines { position: fixed; inset: 0; z-index: 3; pointer-events: none; width: 100vw; height: 100vh; }
 main { position: relative; z-index: 2; }
@@ -51,34 +61,33 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .h1 span, .h2 span { display: block; font-weight: 300; }
 .lead { margin: 0; font-size: clamp(17px, 1.35vw, 20px); line-height: 1.5; color: var(--muted); max-width: 34ch; }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 24px; border-radius: 999px; border: 0; background: #111; color: #fff; font-size: 15px; font-weight: 500; text-decoration: none; cursor: pointer; transition: transform .2s, background .2s; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 26px; border-radius: 999px; border: 0; background: #111; color: #fff; font-size: 15px; font-weight: 500; text-decoration: none; cursor: pointer; transition: transform .2s, background .2s; }
 .btn:hover { background: #2b2b2e; }
 .btn:active { transform: scale(.98); }
-.btn.ghost { background: rgba(255,255,255,.75); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); backdrop-filter: blur(8px); }
-.btn.ghost:hover { background: #fff; }
+.btn.ghost { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1px #e0e0e5; }
+.btn.ghost:hover { background: #f5f5f7; }
 
-/* ---- nawigacja ---- */
-.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 10; height: var(--nav-h); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 var(--pad); transition: background .3s, box-shadow .3s; }
-.nav.solid { background: rgba(250,250,250,.72); backdrop-filter: saturate(1.6) blur(18px); box-shadow: 0 1px 0 rgba(0,0,0,.06); }
-.logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; text-decoration: none; letter-spacing: -0.01em; }
-.logo i { width: 14px; height: 14px; border-radius: 50%; background: conic-gradient(from 200deg, #1d1d1f 0 50%, #c9c6c0 50% 100%); }
+/* ---- nawigacja: jak w makiecie, bez tła paska; menu to biała pigułka z cieniem ---- */
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 10; height: var(--nav-h); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 var(--pad); }
+.logo { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 300; text-decoration: none; letter-spacing: -0.01em; }
+.logo i { width: 16px; height: 16px; margin-right: 0; border-radius: 50%; background: linear-gradient(135deg, #1d1d1f 50%, #d2d2d7 50%); }
 .logo b { font-weight: 600; }
-.menu { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.7); box-shadow: 0 1px 2px rgba(0,0,0,.05); backdrop-filter: blur(12px); }
-.menu a { padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; transition: color .2s, background .2s; }
+.menu { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 26px; padding: 10px 24px; border-radius: 999px; background: rgba(255,255,255,.78); box-shadow: inset 0 0 0 1px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.3); backdrop-filter: blur(12px); }
+.menu a { font-size: 13px; line-height: 19px; font-weight: 400; color: var(--muted); text-decoration: none; white-space: nowrap; transition: color .2s; }
 .menu a:hover { color: var(--ink); }
-.menu a.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-.nav .btn { height: 36px; padding: 0 16px; font-size: 13px; }
-@media (max-width: 860px) { .menu { display: none; } }
+.menu a.on { color: var(--ink); font-weight: 500; }
+.nav-end { display: flex; align-items: center; gap: 18px; }
+.bag { display: flex; color: var(--ink); }
+.nav .btn { height: 33px; padding: 0 16px; font-size: 13px; }
+@media (max-width: 960px) { .menu { display: none; } }
 
-/* ---- 1. Start ---- */
-#start { display: flex; align-items: center; }
-.hero-copy { position: relative; padding: calc(var(--nav-h) + 24px) var(--pad) 48px; display: flex; flex-direction: column; gap: 24px; max-width: 820px; }
-.hero-copy .lead { color: #4a4a4e; } /* na ścianie studia szary #6e6e73 miał za mały kontrast */
-.badge { align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.8); font-size: 13px; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+/* ---- 1. Start: wymiary z makiety (1440 × 900): etykieta 259 px od góry, nagłówek 84 px, przyciski 47 px pod nim ---- */
+#start { display: flex; align-items: flex-start; }
+.hero-copy { position: relative; padding: 28.8vh var(--pad) 48px; display: flex; flex-direction: column; max-width: 820px; }
+.hero-copy .h1 { margin-top: 22px; font-size: clamp(44px, 5.84vw, 84px); font-weight: 600; letter-spacing: -0.045em; line-height: 1; }
+.hero-copy .cta-row { margin-top: 47px; }
+.badge { align-self: flex-start; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,.8); font-size: 13px; line-height: 17px; font-weight: 500; }
 .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
-.scroll-cue { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); font-size: 12px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.scroll-cue::after { content: ''; width: 1px; height: 36px; background: linear-gradient(var(--faint), transparent); animation: cue 2s ease-in-out infinite; transform-origin: top; }
-@keyframes cue { 0%, 100% { transform: scaleY(.3); opacity: .4; } 50% { transform: scaleY(1); opacity: 1; } }
 
 /* ---- 2. Anatomia ---- */
 #design { overflow: hidden; }
@@ -180,8 +189,9 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
 @media (max-width: 560px), (max-aspect-ratio: 5/6) {
   .photo { background-position: 74% 50%; } /* słuchawki są po prawej stronie zdjęcia */
   #start { align-items: flex-start; }
-  .hero-copy { padding-top: calc(var(--nav-h) + 20px); gap: 18px; }
-  .scroll-cue { display: none; }
+  .hero-copy { padding-top: calc(var(--nav-h) + 20px); }
+  .hero-copy .h1 { margin-top: 16px; }
+  .hero-copy .cta-row { margin-top: 28px; }
   .feat { top: auto; bottom: 72px; left: var(--pad) !important; right: var(--pad) !important; width: auto; text-align: center; align-items: center; gap: 8px; }
   .lek-copy { top: auto; bottom: 48px; transform: none; width: auto; right: var(--pad); }
   .lek-copy .h2 { font-size: 34px; }
@@ -236,34 +246,37 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
 <body>
 <div class="backdrop" aria-hidden="true"></div>
 <div class="photo" aria-hidden="true"></div>
-<div class="light" aria-hidden="true"><i></i><i></i></div>
+<div class="light" aria-hidden="true"><i></i></div>
 <canvas id="stage" aria-hidden="true"></canvas>
 <svg class="lines" aria-hidden="true"><path id="leader" fill="none" stroke="#1d1d1f" stroke-width="1" opacity="0"/><circle id="leader-dot" r="5" fill="#fff" stroke="#1d1d1f" stroke-width="1.5" opacity="0"/></svg>
 
 <header class="nav" id="nav">
   <a class="logo" href="#start" aria-label="Lumen Halo, na początek"><i></i>Lumen <b>Halo</b></a>
   <nav class="menu" aria-label="Sekcje">
+    <a href="#start">Start</a>
     <a href="#design">Design</a>
     <a href="#lekkosc">Lekkość</a>
     <a href="#kolory">Kolory</a>
     <a href="#dzien">Cały dzień</a>
-    <a href="#dane">Dane</a>
+    <a href="#dane">Dane techniczne</a>
   </nav>
-  <a class="btn" href="#kolory">Kup</a>
+  <div class="nav-end">
+    <a class="bag" href="#kolory" aria-label="Koszyk"><svg width="15" height="17" viewBox="0 0 15 17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M1.7 5h11.6l-.8 10.3H2.5z"/><path d="M4.8 7V3.9a2.7 2.7 0 0 1 5.4 0V7"/></svg></a>
+    <a class="btn" href="#kolory">Kup</a>
+  </div>
 </header>
+<div class="variants" id="variants" role="group" aria-label="Wariant pojawiania się słuchawek"><span>Wejście słuchawek:</span></div>
 
 <main>
   <section id="start" aria-label="Start">
     <div class="hero-copy">
       <span class="badge">Nowość · Lumen Halo</span>
       <h1 class="h1"><span>Słuchaj w pełnym</span>świetle.</h1>
-      <p class="lead">Ceramika, aluminium i dzianina. 40 godzin muzyki i 268 gramów na głowie.</p>
       <div class="cta-row">
         <a class="btn" href="#kolory">Kup — 1 899 zł</a>
         <a class="btn ghost" href="#dane">Umów odsłuch</a>
       </div>
     </div>
-    <div class="scroll-cue" aria-hidden="true">Przewiń</div>
   </section>
 
   <section id="design" aria-label="Anatomia">
