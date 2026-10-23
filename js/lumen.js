@@ -710,6 +710,8 @@ function timelines() {
   // 3. Oferta (kolory i zakup): bez przypięcia; tu można obracać model
   ScrollTrigger.create({ id: 'kol', trigger: '#kolory', start: 'top top', end: 'bottom top' });
   ScrollTrigger.create({ trigger: '#kolory', start: 'top 60%', end: 'bottom 40%', onLeave: resetDrag, onLeaveBack: resetDrag });
+  // pokaz kolorów, gdy oferta wjedzie na ekran; zatrzymany po wyjściu z sekcji
+  ScrollTrigger.create({ trigger: '#kolory', start: 'top 35%', end: 'bottom 50%', onEnter: startDemo, onEnterBack: startDemo, onLeave: stopDemo, onLeaveBack: stopDemo });
 
   // 4. Lekkość: tekst przed przemianą i „268 g” po niej
   gsap.timeline({ scrollTrigger: { id: 'lek', trigger: '#lekkosc', start: 'top top', end: '+=260%', pin: true, scrub: SCRUB } })
@@ -733,9 +735,9 @@ function timelines() {
 // ---------- Konfigurator ----------
 const swBtns = $$('.sw'), optBtns = $$('.opt');
 let extra = 0;
-function tweenPalette(i) {
-  const p = PALETTES[i], d = reduce ? 0 : 0.9;
-  const to = (mat, hex) => { const c = new THREE.Color(hex); gsap.to(mat.color, { r: c.r, g: c.g, b: c.b, duration: d, ease: 'power2.out' }); };
+function tweenPalette(i, slow) {
+  const p = PALETTES[i], d = reduce ? 0 : slow ? 1.6 : 0.9, ease = slow ? 'sine.inOut' : 'power2.out';
+  const to = (mat, hex) => { const c = new THREE.Color(hex); gsap.to(mat.color, { r: c.r, g: c.g, b: c.b, duration: d, ease }); };
   to(M.ceramic, p.ceramic); to(M.metal, p.metal); to(M.lip, p.metal); to(M.polish, p.metal); to(M.pivot, p.metal); to(M.cushion, p.cushion); to(M.band, p.band); to(M.inner, p.inner);
   const s = new THREE.Color(KOL[i].sun[0]);
   gsap.to(light.c, { r: s.r, g: s.g, b: s.b, duration: d });
@@ -747,19 +749,46 @@ function updateSum() {
   $('#k-total').textContent = 'Razem ' + fmt(total) + ' zł';
   $('#k-buy').textContent = 'Kup Lumen Halo · ' + PALETTES[color].name;
 }
-function setColor(i) {
+// obwódka wybranego koloru przesuwa się płynnie do klikniętej (albo pokazywanej) próbki
+const swRing = document.createElement('span');
+swRing.className = 'sw-ring'; swRing.setAttribute('aria-hidden', 'true');
+$('.swatches').appendChild(swRing);
+function placeRing() {
+  const d = swBtns[color].querySelector('i');
+  swRing.style.width = swRing.style.height = d.offsetWidth + 10 + 'px';
+  swRing.style.transform = `translate(${d.offsetLeft - 5}px, ${d.offsetTop - 5}px)`;
+}
+// slow: pokaz po wejściu w sekcję (wolniejsze, spokojniejsze przejście)
+function setColor(i, slow) {
   if (i === color) return;
   color = i;
   swBtns.forEach((b, k) => b.setAttribute('aria-checked', String(k === i)));
+  placeRing();
+  // nagłówek i opis przenikają się zamiast przeskakiwać
   const [a, b] = KOL[i].title;
-  $('#k-title').innerHTML = `<span>${a}</span>${b}`;
-  $('#k-lead').textContent = KOL[i].lead;
-  tweenPalette(i);
+  gsap.to(['#k-title', '#k-lead'], { opacity: 0, duration: reduce ? 0 : 0.25, overwrite: true, onComplete: () => {
+    $('#k-title').innerHTML = `<span>${a}</span>${b}`;
+    $('#k-lead').textContent = KOL[i].lead;
+    gsap.to(['#k-title', '#k-lead'], { opacity: 1, duration: reduce ? 0 : 0.5 });
+  } });
+  tweenPalette(i, slow);
   const c = new THREE.Color(KOL[i].bg);
   gsap.to(kolBg, { r: c.r, g: c.g, b: c.b, duration: reduce ? 0 : 0.9 });
   updateSum();
 }
-swBtns.forEach((b) => b.addEventListener('click', () => setColor(+b.dataset.i)));
+// Po wejściu w ofertę słuchawki same pokazują kolory (Piasek, Grafit i z powrotem Kreda), a obwódka wędruje po próbkach:
+// od razu widać, że kolor można wybrać. Pokaz przerywa pierwsze kliknięcie albo wyjście z sekcji.
+let demo = null, picked = false;
+function startDemo() {
+  if (picked || reduce || demo) return;
+  demo = gsap.timeline({ delay: 0.8, onComplete: () => { demo = null; } });
+  [1, 2, 0].forEach((k, j) => demo.call(() => setColor(k, true), null, j * 2.6));
+}
+function stopDemo() { if (demo) { demo.kill(); demo = null; } }
+swBtns.forEach((b) => b.addEventListener('click', () => { picked = true; stopDemo(); setColor(+b.dataset.i); }));
+addEventListener('resize', placeRing);
+if (document.fonts) document.fonts.ready.then(placeRing);
+placeRing();
 optBtns.forEach((b) => b.addEventListener('click', () => { optBtns.forEach((o) => o.setAttribute('aria-checked', String(o === b))); extra = +b.dataset.price; updateSum(); }));
 updateSum();
 
