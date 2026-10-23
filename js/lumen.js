@@ -81,17 +81,14 @@ const P = {
     const f = L.compact ? fitIn(top, innerHeight - LP_MOB_H, 2.4) : fitIn(top, innerHeight - 32, 1.1);
     return pose({ py: f.py, rx: 0.12, ry: -0.9, s: f.s });
   },
-  lek: () => {
-    if (!L.mobile) return pose({ px: 0.28 * halfW(), ry: -0.85, s: 0.9 });
-    const f = fitIn(76, rel('.lek-copy', '#lekkosc').top - 8, 0.75);
-    return pose({ py: f.py, ry: -0.85, s: f.s });
-  },
+  // ujęcie piórka (finał w Kontakcie, etap C); sekcja Lekkość wypadła, więc nie zależy od tekstu na stronie
+  lek: () => pose({ px: L.mobile ? 0 : 0.28 * halfW(), ry: -0.85, s: L.mobile ? 0.6 : 0.9 }),
   kol: () => {
-    // model w lewej kolumnie (desktop) albo w pasie nad konfiguratorem (telefon)
-    const r = rel('#spin', '#kolory'), f = fitRect({ ...r, bottom: r.bottom - 22 }, L.mobile ? 0.7 : 0.95, 1.15, 0.8);
+    // model w lewej kolumnie (komputer) albo w pasie nad konfiguratorem (tablet, telefon)
+    const r = rel('#spin', '#konfiguracja'), f = L.mobile ? fitRect(r, 2.4, 1, 0.8) : fitRect({ ...r, bottom: r.bottom - 22 }, 1.2, 1.15, 0.8); // telefon i tablet: bez podpisu „Przeciągnij” pod modelem
     return pose({ px: f.px, py: f.py, ry: -0.75, s: f.s, sway: 1 }); // na białym tle model powoli kołysze się na boki
   },
-  day: () => pose({ px: (L.mobile ? 0.58 : 0.66) * halfW(), py: (L.mobile ? 0.7 : 0.5) * halfH(), rx: 0.14, s: L.mobile ? 0.26 : 0.44 }), // telefon: w rzędzie nadtytułu, obok krótkiego „Cały dzień”
+  day: () => pose({ px: 0.66 * halfW(), py: (L.mobile ? 0.7 : 0.5) * halfH(), rx: 0.14, s: L.mobile ? 0.26 : 0.44 }), // telefon: w rzędzie nadtytułu, po prawej od „Użytkowanie”
   end: () => ({ ...P.day(), alpha: 0 }),
 };
 const KEYS = Object.keys(BASE);
@@ -524,13 +521,13 @@ const mix = (stops, h) => { // interpolacja kolorów/liczb wg godziny
 // Położenie i obrót modelu, przemiana w piórko, zanikanie i kolor tła są jedną funkcją pozycji przewijania
 // (a nie osobnymi animacjami w każdej sekcji). Dzięki temu skok w dowolne miejsce, także powrót na górę
 // jednym kliknięciem, zawsze daje właściwe ujęcie. Lenis wygładza samo przewijanie.
-const KOL = [
-  { title: ['Kreda.', 'Jasna jak poranek.'], lead: 'Ceramika w kolorze kredy, dzianina w kolorze mgły.', bg: '#ffffff', sun: ['#f1f5ff', 1.45] },
-  { title: ['Piasek.', 'Ciepło południa.'], lead: 'Ceramika piaskowa, dzianina owsiana, aluminium szampańskie.', bg: '#ffffff', sun: ['#fff0da', 1.55] },
-  { title: ['Grafit.', 'Spokojny jak wieczór.'], lead: 'Grafitowa ceramika i węglowa dzianina.', bg: '#ffffff', sun: ['#ffdcbc', 1.25] },
-];
+// Konfiguracja: kolor słuchawek. Do pierwszego kliknięcia próbki prowadzi go przewijanie (Kreda → Piasek → Grafit
+// z postojem na każdym), potem wybrany kolor. Poza sekcją słuchawki są białe (Kreda): przy wyjściu przechodzą w biel w obrocie.
+const SUN = [['#f1f5ff', 1.45], ['#fff0da', 1.55], ['#ffdcbc', 1.25]];
+const LOOK = ['ceramic', 'metal', 'cushion', 'band', 'inner'];
+const PAL = PALETTES.map((p, i) => ({ ...Object.fromEntries(LOOK.map((k) => [k, new THREE.Color(p[k])])), sun: new THREE.Color(SUN[i][0]), si: SUN[i][1] }));
+const cur = { ...Object.fromEntries(LOOK.map((k) => [k, PAL[0][k].clone()])), sun: PAL[0].sun.clone(), si: PAL[0].si };
 let color = 0;
-const kolBg = new THREE.Color(KOL[0].bg); // płynnie zmienia się przy wyborze koloru
 
 // Dzień: bloki słuchania (godziny od-do), bateria 40 h z ANC
 const BLOCKS = [[7.5, 8.5, 'Dojazd', 'redukcja szumów włączona'], [9, 12, 'Praca w skupieniu', 'trzy godziny bez przerwy'], [13, 14, 'Spacer', 'tryb przezroczysty'], [20, 22.5, 'Wieczór z muzyką', 'najdłuższa sesja dnia']];
@@ -543,7 +540,7 @@ const B = {};            // granice sekcji w pikselach przewijania
 let POSES = null;        // ujęcia policzone dla bieżącego rozmiaru ekranu
 function measure() {
   const g = (id) => ScrollTrigger.getById(id);
-  Object.assign(B, { hE: g('hero').end, dS: g('design').start, dE: g('design').end, lS: g('lek').start, lE: g('lek').end, kS: g('kol').start, yS: g('day').start, yE: g('day').end });
+  Object.assign(B, { hE: g('hero').end, dS: g('design').start, dE: g('design').end, kS: g('kol').start, kE: g('kol').end, yS: g('day').start, yE: g('day').end });
   B.eE = B.yE + innerHeight * 0.65;
   POSES = Object.fromEntries(Object.keys(P).map((k) => [k, P[k]()]));
   placeLoupes();
@@ -562,7 +559,7 @@ const mixCol = (a, b, t) => cA.set(a).lerp(cB.set(b), t).getHexString();
 const dipAt = (t) => (t < 0.5 ? 1 - smooth((t - 0.05) / 0.35) : smooth((t - 0.6) / 0.35)); // zanika w połowie przenosin
 
 function scrollState(y) {
-  const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0 };
+  const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0, col: 0, white: 1 };
   // wejście słuchawek: razem z pojawianiem się tytułu (od 0,6 Startu) do połowy pierwszej jednostki przypiętej Anatomii
   const ent = seg(y, B.hE * 0.6, B.dS + (B.dE - B.dS) / AN_U * 0.5);
   if (y < B.dS) {
@@ -590,16 +587,25 @@ function scrollState(y) {
     S.lpV = v;
   }
   // Anatomia → oferta: model przesuwa się do kolumny konfiguratora i lekko dokręca, tło przechodzi w białe
-  else if (y < B.kS) { const t = seg(y, B.dE, B.kS); S.pose = mixPose(featPose(4), POSES.kol, io(t)); S.bg = mixCol(ANAT_BG, kolBg, t); }
-  else if (y < B.lS) { const t = seg(y, B.kS, B.lS); S.pose = mixPose(POSES.kol, POSES.lek, t); S.vis = dipAt(t); S.bg = mixCol(kolBg, '#e6e6ea', t); }
-  else if (y <= B.lE) {
-    // Lekkość: rozsypanie (0,2–1,3), piórko i „268 g”, powrót do słuchawek (2,0–2,8)
-    const u = seg(y, B.lS, B.lE) * 2.9;
-    S.pose = POSES.lek; S.wave = u < 1.3 ? seg(u, 0.2, 1.3) : u < 2 ? 1 : 1 - seg(u, 2, 2.8); S.bg = 'e6e6ea';
+  // (model dochodzi do swojej kolumny, zanim wjedzie tekst)
+  else if (y < B.kS) { const t = seg(y, B.dE, B.kS); S.pose = mixPose(featPose(4), POSES.kol, io(Math.min(1, t * 1.4))); S.bg = mixCol(ANAT_BG, '#ffffff', t); S.white = 1 - t; }
+  else if (y <= B.kE) {
+    // Konfiguracja (przypięta): kolor idzie za przewijaniem, z postojem na każdym (Kreda, Piasek, Grafit)
+    const p = seg(y, B.kS, B.kE);
+    S.pose = POSES.kol; S.bg = 'ffffff'; S.white = 0;
+    S.col = io(seg(p, 0.15, 0.35)) + io(seg(p, 0.5, 0.7));
   }
-  else if (y < B.yS) { const t = seg(y, B.lE, B.yS); S.pose = mixPose(POSES.lek, POSES.day, t); S.vis = dipAt(t); S.bg = mixCol('#e6e6ea', BG_DAY[0][1], t); }
-  else if (y <= B.yE) { const u = seg(y, B.yS, B.yE); S.pose = { ...POSES.day, ry: POSES.day.ry + u * Math.PI * 2 }; S.day = lerp(7, 23, smooth((u - 0.04) / 0.76)); }
-  else { const t = seg(y, B.yE, B.eE); S.pose = mixPose({ ...POSES.day, ry: POSES.day.ry + Math.PI * 2 }, POSES.end, t); S.bg = mixCol(BG_DAY[BG_DAY.length - 1][1], '#ffffff', t); }
+  else if (y < B.yS) {
+    // Konfiguracja → Użytkowanie: słuchawki obracają się, w pierwszej połowie przechodzą w biel, a w połowie drogi gasną,
+    // żeby nie przejść przez tekst
+    // do połowy model jedzie w górę razem ze swoją sekcją (tekst nie najeżdża na niego), potem pojawia się w Użytkowaniu
+    const t = seg(y, B.kE, B.yS), up = (y - B.kE) / innerHeight * 2 * halfH();
+    S.pose = t < 0.5 ? { ...POSES.kol, py: POSES.kol.py + up } : { ...POSES.day }; S.pose.ry += io(t) * Math.PI;
+    S.vis = dipAt(t); S.bg = mixCol('#ffffff', BG_DAY[0][1], t);
+    S.col = 2; S.white = smooth(seg(t, 0, 0.45));
+  }
+  else if (y <= B.yE) { const u = seg(y, B.yS, B.yE); S.pose = { ...POSES.day, ry: POSES.day.ry + Math.PI + u * Math.PI * 2 }; S.day = lerp(7, 23, smooth((u - 0.04) / 0.76)); }
+  else { const t = seg(y, B.yE, B.eE); S.pose = mixPose({ ...POSES.day, ry: POSES.day.ry + Math.PI * 3 }, { ...POSES.end, ry: POSES.end.ry + Math.PI * 3 }, t); S.bg = mixCol(BG_DAY[BG_DAY.length - 1][1], '#ffffff', t); }
   return S;
 }
 
@@ -609,7 +615,7 @@ function buildTrack() {
   BLOCKS.forEach(([a, b, n]) => { const d = document.createElement('div'); d.className = 'blk'; d.style.left = (a - 7) / 16 * 100 + '%'; d.style.width = (b - a) / 16 * 100 + '%'; d.innerHTML = `<i></i><span>${n}</span>`; tr.appendChild(d); });
 }
 buildTrack();
-const dayEls = { sec: $('#dzien'), clock: $('#d-clock'), what: $('#d-what'), now: $('#d-now'), level: $('#d-level'), pct: $('#d-pct'), note: $('#d-note'), blk: $$('#d-track .blk i') };
+const dayEls = { sec: $('#uzytkowanie'), clock: $('#d-clock'), what: $('#d-what'), now: $('#d-now'), level: $('#d-level'), pct: $('#d-pct'), note: $('#d-note'), blk: $$('#d-track .blk i') };
 let lastDay = '', dayLight = null;
 function setDay(h) {
   const listened = BLOCKS.reduce((s, [a, b]) => s + clamp(h - a, 0, b - a), 0), pct = Math.round(100 - listened / 40 * 100);
@@ -633,6 +639,7 @@ function setDay(h) {
 // ---------- Pętla ----------
 let lastBg = '', dayActive = false, lastHead = '', lastTime = 0, ySm = null;
 const lpState = { a: 0, v: 0 };
+const navLinks = $$('.menu a'); let navOn = -1;
 const headKids = $$('.anat-head > *');
 function frame(time) {
   const t = time;
@@ -659,6 +666,14 @@ function frame(time) {
     const bg = dayActive ? dayLight.bg : S.bg;
     if (bg !== lastBg) { backdrop.style.backgroundColor = '#' + bg; lastBg = bg; }
     lpState.a = S.lp; lpState.v = S.lpV;
+    applyLook(S.col, S.white, dt);
+    // strefa konfiguracji (granice z przypięć; ScrollTrigger liczy końce za przypiętą sekcją bez jej długości):
+    // pasek z ceną po wybraniu koloru, a po wyjściu z niej model wraca do swojego obrotu
+    const zone = y >= B.kS - innerHeight * 0.5 && y < B.kE + innerHeight * 0.6;
+    if (zone !== barZone) { barZone = zone; showBar(); if (!zone) resetDrag(); }
+    // menu: bieżąca sekcja, gdy jej góra minie 55% wysokości ekranu
+    const h = innerHeight, on = [0, B.dS, B.kS, B.yS, B.yE + h].filter((s) => y >= s - 0.55 * h).length - 1;
+    if (on !== navOn) { navLinks.forEach((a, i) => a.classList.toggle('on', i === on)); navOn = on; }
   }
   const bob = reduce ? 0 : Math.sin(t * 0.9) * 0.05 * rig.bob;
   pivot.position.set(rig.px, rig.py + bob, rig.pz);
@@ -707,92 +722,84 @@ function timelines() {
   tA.to('.anat-head', { autoAlpha: 0, y: -30, duration: 0.15 }, AN_U - 0.15)
     .to({}, { duration: 0.1 }, AN_U - 0.1);
 
-  // 3. Oferta (kolory i zakup): bez przypięcia; tu można obracać model
-  ScrollTrigger.create({ id: 'kol', trigger: '#kolory', start: 'top top', end: 'bottom top' });
-  ScrollTrigger.create({ trigger: '#kolory', start: 'top 60%', end: 'bottom 40%', onLeave: resetDrag, onLeaveBack: resetDrag });
-  // pokaz kolorów, gdy oferta wjedzie na ekran; zatrzymany po wyjściu z sekcji
-  ScrollTrigger.create({ trigger: '#kolory', start: 'top 35%', end: 'bottom 50%', onEnter: startDemo, onEnterBack: startDemo, onLeave: stopDemo, onLeaveBack: stopDemo });
+  // 3. Konfiguracja: przypięta na 1,5 ekranu; przy przewijaniu słuchawki zmieniają kolor (scrollState), model można obracać
+  ScrollTrigger.create({ id: 'kol', trigger: '#konfiguracja', start: 'top top', end: '+=150%', pin: true });
 
-  // 4. Lekkość: tekst przed przemianą i „268 g” po niej
-  gsap.timeline({ scrollTrigger: { id: 'lek', trigger: '#lekkosc', start: 'top top', end: '+=260%', pin: true, scrub: SCRUB } })
-    .fromTo('.lek-intro', { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: 0.15, immediateRender: false }, 0)
-    .to('.lek-intro', { autoAlpha: 0, y: -20, duration: 0.15 }, 0.75)
-    .fromTo('.lek-out', { autoAlpha: 0, y: 30 }, { autoAlpha: 1, y: 0, duration: 0.25, immediateRender: false }, 1.05)
-    .to('.lek-out', { autoAlpha: 0, y: -30, duration: 0.2 }, 1.9)
-    .to({}, { duration: 0.1 }, 2.8);
-
-  // 5. Cały dzień: godzina biegnie od 7:00 do 23:00 (scrollState), na końcu karty z faktami
-  gsap.timeline({ scrollTrigger: { id: 'day', trigger: '#dzien', start: 'top top', end: '+=220%', pin: true, scrub: SCRUB } })
+  // 4. Użytkowanie: godzina biegnie od 7:00 do 23:00 (scrollState), na końcu karty z faktami
+  gsap.timeline({ scrollTrigger: { id: 'day', trigger: '#uzytkowanie', start: 'top top', end: '+=220%', pin: true, scrub: SCRUB } })
     .to('.fact', { opacity: 1, y: 0, stagger: 0.04, duration: 0.1 }, 0.82)
     .to({}, { duration: 0.1 }, 0.9);
 
-  // menu: podświetlenie bieżącej sekcji
-  const links = $$('.menu a');
-  links.forEach((a) => ScrollTrigger.create({ trigger: a.getAttribute('href'), start: 'top 55%', end: 'bottom 55%', onToggle: (s) => a.classList.toggle('on', s.isActive) }));
   ScrollTrigger.addEventListener('refresh', measure);
 }
 
 // ---------- Konfigurator ----------
-const swBtns = $$('.sw'), optBtns = $$('.opt');
-let extra = 0;
-function tweenPalette(i, slow) {
-  const p = PALETTES[i], d = reduce ? 0 : slow ? 1.6 : 0.9, ease = slow ? 'sine.inOut' : 'power2.out';
-  const to = (mat, hex) => { const c = new THREE.Color(hex); gsap.to(mat.color, { r: c.r, g: c.g, b: c.b, duration: d, ease }); };
-  to(M.ceramic, p.ceramic); to(M.metal, p.metal); to(M.lip, p.metal); to(M.polish, p.metal); to(M.pivot, p.metal); to(M.cushion, p.cushion); to(M.band, p.band); to(M.inner, p.inner);
-  const s = new THREE.Color(KOL[i].sun[0]);
-  gsap.to(light.c, { r: s.r, g: s.g, b: s.b, duration: d });
-  gsap.to(light, { i: KOL[i].sun[1], duration: d });
-}
+const swBtns = $$('.sw'), optBtns = $$('.opt'), buybar = $('#buybar');
+let extra = 0, picked = false, barZone = false;
+const NBSP = String.fromCharCode(160), fmt = (n) => (n >= 1000 ? Math.floor(n / 1000) + NBSP + String(n % 1000).padStart(3, '0') : String(n)); // 1 899 zł jak w reszcie strony
 function updateSum() {
-  const NBSP = String.fromCharCode(160), fmt = (n) => (n >= 1000 ? Math.floor(n / 1000) + NBSP + String(n % 1000).padStart(3, "0") : String(n)); // 1 899 zł jak w reszcie strony
-  const total = 1899 + extra;
-  $('#k-total').textContent = 'Razem ' + fmt(total) + ' zł';
+  const total = fmt(1899 + extra) + ' zł', etui = optBtns.find((o) => o.getAttribute('aria-checked') === 'true').dataset.name;
+  $('#k-total').textContent = 'Razem ' + total;
   $('#k-buy').textContent = 'Kup Lumen Halo · ' + PALETTES[color].name;
+  $('#b-price').textContent = total;
+  $('#b-what').textContent = PALETTES[color].name + ' · ' + etui;
 }
-// obwódka wybranego koloru przesuwa się płynnie do klikniętej (albo pokazywanej) próbki
+function showBar() {
+  const on = picked && barZone;
+  buybar.classList.toggle('on', on);
+  buybar.setAttribute('aria-hidden', String(!on));
+  buybar.querySelector('a').tabIndex = on ? 0 : -1;
+}
+// obwódka wybranego koloru: przy przewijaniu idzie płynnie za kolorem (x: 0 Kreda … 2 Grafit), po kliknięciu przesuwa się do próbki
 const swRing = document.createElement('span');
 swRing.className = 'sw-ring'; swRing.setAttribute('aria-hidden', 'true');
 $('.swatches').appendChild(swRing);
-function placeRing() {
-  const d = swBtns[color].querySelector('i');
-  swRing.style.width = swRing.style.height = d.offsetWidth + 10 + 'px';
-  swRing.style.transform = `translate(${d.offsetLeft - 5}px, ${d.offsetTop - 5}px)`;
+let ringX = -1;
+function placeRing(x = ringX < 0 ? 0 : ringX) {
+  ringX = x;
+  const k = Math.min(1, Math.floor(x)), f = x - k, a = swBtns[k].querySelector('i'), b = swBtns[k + 1].querySelector('i');
+  swRing.style.width = swRing.style.height = a.offsetWidth + 10 + 'px';
+  swRing.style.transform = `translate(${lerp(a.offsetLeft, b.offsetLeft, f) - 5}px, ${a.offsetTop - 5}px)`;
 }
-// slow: pokaz po wejściu w sekcję (wolniejsze, spokojniejsze przejście)
-function setColor(i, slow) {
+function setColor(i) {
   if (i === color) return;
   color = i;
   swBtns.forEach((b, k) => b.setAttribute('aria-checked', String(k === i)));
-  placeRing();
-  // nagłówek i opis przenikają się zamiast przeskakiwać
-  const [a, b] = KOL[i].title;
-  gsap.to(['#k-title', '#k-lead'], { opacity: 0, duration: reduce ? 0 : 0.25, overwrite: true, onComplete: () => {
-    $('#k-title').innerHTML = `<span>${a}</span>${b}`;
-    $('#k-lead').textContent = KOL[i].lead;
-    gsap.to(['#k-title', '#k-lead'], { opacity: 1, duration: reduce ? 0 : 0.5 });
-  } });
-  tweenPalette(i, slow);
-  const c = new THREE.Color(KOL[i].bg);
-  gsap.to(kolBg, { r: c.r, g: c.g, b: c.b, duration: reduce ? 0 : 0.9 });
   updateSum();
 }
-// Po wejściu w ofertę słuchawki same pokazują kolory (Piasek, Grafit i z powrotem Kreda), a obwódka wędruje po próbkach:
-// od razu widać, że kolor można wybrać. Pokaz przerywa pierwsze kliknięcie albo wyjście z sekcji.
-let demo = null, picked = false;
-function startDemo() {
-  if (picked || reduce || demo) return;
-  demo = gsap.timeline({ delay: 0.8, onComplete: () => { demo = null; } });
-  [1, 2, 0].forEach((k, j) => demo.call(() => setColor(k, true), null, j * 2.6));
+// kolor w pętli: przewijanie (do pierwszego kliknięcia) albo wybrany kolor, a poza sekcją biel (Kreda)
+const lookTmp = new THREE.Color();
+function applyLook(x, white, dt) {
+  if (!picked) {
+    const k = Math.min(1, Math.floor(x)), f = x - k;
+    LOOK.forEach((n) => cur[n].copy(PAL[k][n]).lerp(PAL[k + 1][n], f));
+    cur.sun.copy(PAL[k].sun).lerp(PAL[k + 1].sun, f); cur.si = lerp(PAL[k].si, PAL[k + 1].si, f);
+    if (Math.abs(x - ringX) > 0.001) placeRing(x);
+    setColor(Math.round(x));
+  } else { // po kliknięciu kolor dochodzi do wybranego w ok. 0,6 s
+    const q = reduce ? 1 : 1 - Math.exp(-dt / 0.2), P1 = PAL[color];
+    LOOK.forEach((n) => cur[n].lerp(P1[n], q));
+    cur.sun.lerp(P1.sun, q); cur.si = lerp(cur.si, P1.si, q);
+  }
+  const P0 = PAL[0], set = (mat, n) => mat.color.copy(lookTmp.copy(cur[n]).lerp(P0[n], white));
+  set(M.ceramic, 'ceramic'); set(M.metal, 'metal'); set(M.lip, 'metal'); set(M.polish, 'metal'); set(M.pivot, 'metal');
+  set(M.cushion, 'cushion'); set(M.band, 'band'); set(M.inner, 'inner');
+  light.c.copy(cur.sun).lerp(P0.sun, white); light.i = lerp(cur.si, P0.si, white);
 }
-function stopDemo() { if (demo) { demo.kill(); demo = null; } }
-swBtns.forEach((b) => b.addEventListener('click', () => { picked = true; stopDemo(); setColor(+b.dataset.i); }));
-addEventListener('resize', placeRing);
-if (document.fonts) document.fonts.ready.then(placeRing);
-placeRing();
+swBtns.forEach((b) => b.addEventListener('click', () => {
+  picked = true;
+  swRing.classList.add('ease');
+  setColor(+b.dataset.i);
+  placeRing(color);
+  showBar();
+}));
+addEventListener('resize', () => placeRing());
+if (document.fonts) document.fonts.ready.then(() => placeRing());
+placeRing(0);
 optBtns.forEach((b) => b.addEventListener('click', () => { optBtns.forEach((o) => o.setAttribute('aria-checked', String(o === b))); extra = +b.dataset.price; updateSum(); }));
 updateSum();
 
-// obracanie modelu w sekcji Kolory
+// obracanie modelu w sekcji Konfiguracja
 function resetDrag() { gsap.to(drag, { x: 0, y: 0, duration: reduce ? 0 : 0.8, ease: 'power2.out' }); }
 {
   const area = $('#spin'); let down = null;
@@ -829,5 +836,16 @@ timelines();
 addEventListener('resize', () => { layout(); });
 gsap.ticker.add((time) => frame(time));
 gsap.to(appear, { v: 1, duration: reduce ? 0 : 1.2, ease: 'power2.out', delay: 0.1 });
-// piórko i drobinki do sekcji Lekkość liczą się chwilę po starcie, w wolnych chwilach, żeby nie opóźniać wejścia na stronę
-setTimeout(() => idle().then(buildDust), 1500);
+// Piórko i drobinki (buildDust) czekają na finał w sekcji Kontakt (etap C): sekcja Lekkość wypadła, więc na razie nie są budowane.
+
+// menu chowa się przy przewijaniu w dół i wraca przy przewijaniu w górę (na samej górze strony jest zawsze widoczne)
+{
+  const nav = $('#nav'); let lastY = scrollY;
+  addEventListener('scroll', () => {
+    const y = scrollY, d = y - lastY;
+    if (y < 80) nav.classList.remove('hide');
+    else if (d > 6) nav.classList.add('hide');
+    else if (d < -6) nav.classList.remove('hide');
+    if (Math.abs(d) > 6 || y < 80) lastY = y;
+  }, { passive: true });
+}

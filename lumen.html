@@ -11,7 +11,7 @@
 <style>
 /* Jedna strona, jeden obiekt: płótno 3D stoi przypięte za treścią, a przewijanie przeprowadza słuchawki przez sekcje.
    Warstwy: tło strony (kolor zmienia się z sekcją) → płótno 3D → treść. Każda sekcja mieści się w jednym ekranie,
-   oprócz celowo przypiętych (Start, Anatomia, Lekkość, Dzień), które grają przy przewijaniu. Świadomie jasny wygląd. */
+   oprócz celowo przypiętych (Start, Design, Konfiguracja, Użytkowanie), które grają przy przewijaniu. Świadomie jasny wygląd. */
 :root {
   --ink: #1d1d1f;
   --muted: #6e6e73;
@@ -20,7 +20,8 @@
   --card: #ffffff;
   --accent: #0066cc;
   --font: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --pad: max(24px, 4.5vw);
+  --pad: max(64px, 4.5vw); /* marginesy z siatki w Figmie: komputer 64, tablet 40, telefon 20 */
+  --bar-h: 90px;
   --nav-h: 76px;
   color-scheme: light;
 }
@@ -70,6 +71,8 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .bag { display: flex; color: var(--ink); }
 .nav .btn { height: 33px; padding: 0 16px; font-size: 13px; }
 @media (max-width: 960px) { .menu { display: none; } }
+@media (max-width: 1099px) { :root { --pad: 40px; } }
+@media (max-width: 560px) { :root { --pad: 20px; } }
 
 /* ---- 1. Start: wymiary z makiety (1440 × 900): etykieta 259 px od góry, nagłówek 84 px, przyciski 47 px pod nim ---- */
 #start { display: flex; align-items: flex-start; }
@@ -96,50 +99,53 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .compact .lp { width: min(520px, calc(100vw - 2 * var(--pad))); }
 .compact .lp p { white-space: normal; }
 
-/* ---- 3. Lekkość ---- */
-.lek-copy { position: absolute; top: 50%; left: var(--pad); transform: translateY(-50%); width: min(520px, 40vw); display: grid; align-items: center; }
-.lek-intro, .lek-out { grid-area: 1 / 1; visibility: hidden; opacity: 0; }
-.lek-out { display: flex; flex-direction: column; gap: 22px; }
-.big { margin: 0; font-size: clamp(88px, 12vw, 190px); font-weight: 300; letter-spacing: -0.06em; line-height: .9; }
-.chips { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip { padding: 9px 14px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px #e2e1de; font-size: 14px; font-weight: 500; }
-
-/* ---- 4. Kolory: konfigurator ---- */
-#kolory { display: grid; grid-template-columns: 1fr minmax(380px, 520px); gap: 4vw; align-items: center; padding: calc(var(--nav-h) + 16px) var(--pad) 24px; }
+/* ---- 3. Konfiguracja: wymiary z Figmy („Lumen · aktualne”), odstępy ze skali 4–96 ----
+   Komputer: model w lewej kolumnie, treść 512 px po prawej. Nagłówek → opcje 64, etykieta → próbki 20, między grupami 32,
+   podsumowanie → przycisk 40. Sekcja jest przypięta, a kolor zmienia się przy przewijaniu (lumen.js). */
+#konfiguracja { display: grid; grid-template-columns: 1fr minmax(380px, 512px); gap: 4vw; align-items: center; padding: calc(var(--nav-h) + 16px) var(--pad) 24px; }
 .spin-area { align-self: stretch; position: relative; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .spin-area:active { cursor: grabbing; }
 /* na białym tle: miękki szary cień pod unoszącym się modelem, żeby jasne słuchawki nie zlewały się z tłem */
 .spin-area::before { content: ""; position: absolute; left: 18%; right: 18%; bottom: 7%; height: 9%; background: radial-gradient(closest-side, rgba(0, 0, 0, .1), transparent); pointer-events: none; }
 .spin-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--faint); white-space: nowrap; }
-.config { display: flex; flex-direction: column; gap: clamp(12px, 2.1vh, 22px); }
-.config .h2 { font-size: clamp(34px, 3.8vw, 56px); }
+.config { display: flex; flex-direction: column; }
+.cfg-head { display: flex; flex-direction: column; gap: 12px; }
+.config .h2 { font-size: clamp(34px, 3.9vw, 56px); letter-spacing: -0.04em; }
+.cfg-body { margin-top: 64px; display: flex; flex-direction: column; gap: 32px; }
+.cfg-group { display: flex; flex-direction: column; gap: 20px; }
 .step { font-size: 15px; font-weight: 600; display: flex; gap: 12px; }
 .step b { color: var(--faint); font-weight: 600; }
-.swatches { position: relative; display: flex; gap: 20px; }
-/* obwódka wybranego koloru: jedna, przesuwa się między próbkami */
-.sw-ring { position: absolute; left: 0; top: 0; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--ink); pointer-events: none; transition: transform .8s cubic-bezier(.45, 0, .2, 1), width .3s, height .3s; }
-.sw { display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: 0; padding: 0; cursor: pointer; }
-.sw i { width: 44px; height: 44px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); transition: box-shadow .2s; }
-.sw span { font-size: 14px; font-weight: 500; }
-.sw small { font-size: 12px; color: var(--faint); margin-top: -4px; }
+.swatches { position: relative; display: flex; gap: 32px; }
+/* obwódka wybranego koloru: jedna, przesuwa się między próbkami (przy przewijaniu idzie płynnie za kolorem) */
+.sw-ring { position: absolute; left: 0; top: 0; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--ink); pointer-events: none; }
+.sw-ring.ease { transition: transform .8s cubic-bezier(.45, 0, .2, 1); }
+.sw { display: flex; flex-direction: column; align-items: center; gap: 8px; background: none; border: 0; padding: 0; cursor: pointer; }
+.sw i { width: 56px; height: 56px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+.sw span { font-size: 15px; font-weight: 500; }
 .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.opt { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 14px 18px; border-radius: 16px; border: 0; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; transition: box-shadow .2s; }
+.opt { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 14px 18px; border-radius: 16px; border: 0; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; transition: box-shadow .2s, background .2s; }
 .opt[aria-checked="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
 .opt span { font-size: 15px; font-weight: 500; }
 .opt small { font-size: 13px; color: var(--faint); }
-.field { height: 50px; width: 100%; border: 0; border-radius: 12px; padding: 0 18px; background: rgba(255,255,255,.7); box-shadow: inset 0 0 0 1px var(--line); font: 400 15px var(--font); color: var(--ink); }
-.field::placeholder { color: var(--faint); }
-.sum { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-.sum strong { font-size: 20px; font-weight: 600; }
+.sum { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.sum strong { font-size: 19px; font-weight: 600; }
 .sum small { font-size: 13px; color: var(--faint); }
-.config .btn { width: 100%; }
+.config #k-buy { margin-top: 40px; align-self: flex-start; height: 52px; padding: 0 24px; }
 
-/* ---- 5. Dzień ---- */
-#dzien { --d-ink: #1d1d1f; --d-muted: #6e6e73; --d-card: #ffffff; --d-line: #c9c8c4; color: var(--d-ink); transition: color .5s; }
+/* pasek z ceną (tablet, telefon): przyklejony do dołu, wsuwa się po kliknięciu próbki */
+.buybar { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; align-items: center; justify-content: space-between; gap: 16px; padding: 14px var(--pad) calc(14px + env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -4px 20px rgba(0, 0, 0, .08); transform: translateY(110%); transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+.buybar.on { transform: none; }
+.bb-price { display: flex; flex-direction: column; }
+.bb-price strong { font-size: 20px; font-weight: 600; }
+.bb-price small { font-size: 13px; color: var(--faint); }
+.buybar .btn { padding: 0 26px; }
+
+/* ---- 4. Użytkowanie (dzień) ---- */
+#uzytkowanie { --d-ink: #1d1d1f; --d-muted: #6e6e73; --d-card: #ffffff; --d-line: #c9c8c4; color: var(--d-ink); transition: color .5s; }
 /* po zmroku tło ciemnieje, więc tekst i karty przechodzą na jasne */
-#dzien.night { --d-ink: #f5f5f7; --d-muted: #a1a1a6; --d-card: #26262a; --d-line: #4a4a4f; }
-#dzien.night .fact.dark { background: #f5f5f7; color: #1d1d1f; }
-#dzien.night .fact.dark span { color: #6e6e73; }
+#uzytkowanie.night { --d-ink: #f5f5f7; --d-muted: #a1a1a6; --d-card: #26262a; --d-line: #4a4a4f; }
+#uzytkowanie.night .fact.dark { background: #f5f5f7; color: #1d1d1f; }
+#uzytkowanie.night .fact.dark span { color: #6e6e73; }
 .fact, .track .blk, .cell { transition: background .5s, box-shadow .5s; }
 .day { position: absolute; inset: 0; padding: calc(var(--nav-h) + clamp(12px, 3vh, 36px)) var(--pad) clamp(20px, 4vh, 40px); display: flex; flex-direction: column; gap: clamp(14px, 3vh, 32px); }
 .day .eb { color: var(--d-muted); }
@@ -167,7 +173,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .fact.dark { background: #1d1d1f; color: #fff; }
 .fact.dark span { color: #b5b5ba; }
 
-/* ---- 6. Dane i zakup ---- */
+/* ---- 5. Dane i zakup ---- */
 #dane { padding: calc(var(--nav-h) + 40px) var(--pad) 32px; display: flex; flex-direction: column; gap: clamp(24px, 5vh, 56px); justify-content: center; background: #fff; }
 .dane-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); gap: 5vw; align-items: start; }
 .spec { margin: 0; display: grid; grid-template-columns: 1fr; }
@@ -191,18 +197,24 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .hero-copy .h1 { margin-top: 0; }
   .hero-copy .cta-row { margin-top: 28px; }
   .lp-bar i { width: 28px; }
-  .lek-copy { top: auto; bottom: 48px; transform: none; width: auto; right: var(--pad); }
-  .lek-copy .h2 { font-size: 34px; }
-  .big { font-size: 96px; }
-  #kolory { grid-template-columns: 1fr; grid-template-rows: minmax(24vh, 1fr) auto; gap: 4px; padding-top: calc(var(--nav-h) + 4px); padding-bottom: 16px; }
-  .config { gap: 10px; }
-  .config .lead, .config > .eb { display: none; }
-  .config .h2 { font-size: 30px; }
-  .sw i { width: 34px; height: 34px; }
-  .sw small { display: none; }
-  .opt { padding: 10px 14px; border-radius: 12px; }
-  .field, .btn { height: 44px; }
-  .spin-hint { bottom: 0; }
+  /* Konfiguracja, wariant 3D: duży model, pod nim tytuł, kolory i etui w pigułce; cena i „Kup” w pasku na dole.
+     Dół sekcji zostawia miejsce na pasek (pojawia się po kliknięciu próbki), więc nic nie skacze. */
+  #konfiguracja { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 24px; padding: var(--nav-h) var(--pad) calc(var(--bar-h) + 40px); }
+  .cfg-head .eb, .step, .sum, .config #k-buy, .spin-hint { display: none; }
+  .config .h2 { font-size: 34px; }
+  .cfg-body { margin-top: 20px; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 20px; }
+  .swatches { gap: 18px; }
+  .sw { gap: 6px; }
+  .sw i { width: 44px; height: 44px; }
+  .sw span { font-size: 13px; }
+  /* etui jako przełącznik w pigułce: krótkie podpisy z data-short */
+  .opts { display: flex; gap: 0; padding: 4px; border-radius: 999px; background: #f5f5f7; }
+  .opt { flex: 1; align-items: center; padding: 9px 14px; border-radius: 999px; background: none; box-shadow: none; }
+  .opt[aria-checked="true"] { background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .08); }
+  .opt span, .opt small { display: none; }
+  .opt::after { content: attr(data-short); font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .opt[aria-checked="true"]::after { color: var(--ink); font-weight: 500; }
+  .buybar { display: flex; padding-top: 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
   .facts { grid-template-columns: 1fr; gap: 8px; }
   .fact { padding: 12px 18px; flex-direction: row; justify-content: space-between; align-items: baseline; }
   .fact span { text-align: right; }
@@ -218,11 +230,22 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .buy { padding: 20px; gap: 12px; border-radius: 22px; }
   .buy .price { font-size: 30px; }
 }
-/* telefon: zdjęcie tak, żeby lewa słuchawka była widoczna w całości, i jeden przycisk: czarny „Umów odsłuch” (Kup jest w menu) */
+/* telefon: zdjęcie tak, żeby lewa słuchawka była widoczna w całości, i jeden przycisk: czarny „Umów odsłuch” */
 @media (max-width: 560px) {
+  :root { --bar-h: 78px; }
   .photo { background-position: 56% 50%; }
+  /* Konfiguracja: model → tytuł 40, tytuł → kolory 24, kolory → etui 20 */
+  #konfiguracja { gap: 40px; }
+  .config .h2 { font-size: 26px; }
+  .cfg-body { margin-top: 24px; flex-direction: column; align-items: stretch; }
+  .sw i { width: 36px; height: 36px; }
+  .buybar { padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
   .hero-copy .cta-row .btn:not(.ghost) { display: none; }
   .hero-copy .cta-row .btn.ghost { background: #111; color: #fff; box-shadow: none; }
+}
+/* niskie telefony (np. 375 × 667): mniejsze odstępy, żeby model był duży */
+@media (max-width: 560px) and (max-height: 740px) {
+  #konfiguracja { gap: 24px; padding-bottom: calc(var(--bar-h) + 16px); }
 }
 /* tablet pionowo: większy nagłówek, tekst wyżej nad słuchawkami */
 @media (min-width: 561px) and (max-aspect-ratio: 5/6) {
@@ -231,11 +254,11 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
 }
 /* niskie ekrany (laptopy 13", okna przeglądarki z paskami): gęściej, żeby sekcje mieściły się w jednym ekranie */
 @media (max-height: 780px) and (min-aspect-ratio: 5/6) {
-  .config { gap: 9px; }
-  .config .lead { display: none; }
-  .sw i { width: 36px; height: 36px; }
-  .opt { padding: 10px 14px; }
-  .field { height: 44px; }
+  .cfg-body { margin-top: 40px; gap: 24px; }
+  .cfg-group { gap: 16px; }
+  .sw i { width: 48px; height: 48px; }
+  .opt { padding: 10px 16px; }
+  .config #k-buy { margin-top: 32px; }
   #dane { padding-top: calc(var(--nav-h) + 12px); gap: 20px; }
   #dane .h2 { font-size: clamp(30px, 3.4vw, 46px); }
   .spec dt, .spec dd { padding: 9px 0; font-size: 14px; }
@@ -243,6 +266,9 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .buy .price { font-size: 32px; }
 }
 .no-webgl #stage { display: none; }
+/* menu chowa się przy przewijaniu w dół i wraca przy przewijaniu w górę */
+.nav { transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
+.nav.hide { transform: translateY(-110%); }
 </style>
 <script type="importmap">
 { "imports": {
@@ -264,14 +290,13 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   <nav class="menu" aria-label="Sekcje">
     <a href="#start">Start</a>
     <a href="#design">Design</a>
-    <a href="#kolory">Kolory</a>
-    <a href="#lekkosc">Lekkość</a>
-    <a href="#dzien">Cały dzień</a>
+    <a href="#konfiguracja">Konfiguracja</a>
+    <a href="#uzytkowanie">Użytkowanie</a>
     <a href="#dane">Dane techniczne</a>
   </nav>
   <div class="nav-end">
-    <a class="bag" href="#kolory" aria-label="Koszyk"><svg width="15" height="17" viewBox="0 0 15 17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M1.7 5h11.6l-.8 10.3H2.5z"/><path d="M4.8 7V3.9a2.7 2.7 0 0 1 5.4 0V7"/></svg></a>
-    <a class="btn" href="#kolory">Kup</a>
+    <!-- koszyk: na razie prowadzi do konfiguracji, docelowo do podsumowania zamówienia -->
+    <a class="bag" href="#konfiguracja" aria-label="Koszyk"><svg width="15" height="17" viewBox="0 0 15 17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M1.7 5h11.6l-.8 10.3H2.5z"/><path d="M4.8 7V3.9a2.7 2.7 0 0 1 5.4 0V7"/></svg></a>
   </div>
 </header>
 
@@ -281,7 +306,7 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
       <span class="badge">Nowość · Lumen Halo</span>
       <h1 class="h1"><span>Słuchaj w pełnym</span>świetle.</h1>
       <div class="cta-row">
-        <a class="btn" href="#kolory">Kup — 1 899 zł</a>
+        <a class="btn" href="#konfiguracja">Kup — 1 899 zł</a>
         <a class="btn ghost" href="#dane">Umów odsłuch</a>
       </div>
     </div>
@@ -298,49 +323,39 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
     <article class="lp"><h3>Ruchome ramię</h3><p>Płynna regulacja, cicha jak zawias drzwi.</p></article>
   </section>
 
-  <section id="kolory" aria-label="Kolory i zakup">
+  <section id="konfiguracja" aria-label="Konfiguracja i zakup">
     <div class="spin-area" id="spin"><span class="spin-hint">Przeciągnij, aby obrócić</span></div>
     <div class="config">
-      <p class="eb">Konfiguracja</p>
-      <h2 class="h2" id="k-title"><span>Kreda.</span>Jasna jak poranek.</h2>
-      <p class="lead" id="k-lead">Ceramika w kolorze kredy, dzianina w kolorze mgły.</p>
-      <div class="step"><b>1</b>Kolor</div>
-      <div class="swatches" role="radiogroup" aria-label="Kolor">
-        <button class="sw" role="radio" aria-checked="true" data-i="0"><i style="background:#eceae6"></i><span>Kreda</span><small>7:00</small></button>
-        <button class="sw" role="radio" aria-checked="false" data-i="1"><i style="background:#d9cbb6"></i><span>Piasek</span><small>12:00</small></button>
-        <button class="sw" role="radio" aria-checked="false" data-i="2"><i style="background:#3d3d40"></i><span>Grafit</span><small>21:00</small></button>
+      <div class="cfg-head">
+        <p class="eb">Konfiguracja</p>
+        <h2 class="h2">Wybierz swój kolor.</h2>
       </div>
-      <div class="step"><b>2</b>Etui</div>
-      <div class="opts" role="radiogroup" aria-label="Etui">
-        <button class="opt" role="radio" aria-checked="true" data-price="0"><span>Etui z dzianiny</span><small>W zestawie</small></button>
-        <button class="opt" role="radio" aria-checked="false" data-price="149"><span>Etui skórzane</span><small>+149 zł</small></button>
+      <div class="cfg-body">
+        <div class="cfg-group">
+          <div class="step"><b>1</b>Kolor</div>
+          <div class="swatches" role="radiogroup" aria-label="Kolor">
+            <button class="sw" role="radio" aria-checked="true" data-i="0"><i style="background:#eceae6"></i><span>Kreda</span></button>
+            <button class="sw" role="radio" aria-checked="false" data-i="1"><i style="background:#d9cbb6"></i><span>Piasek</span></button>
+            <button class="sw" role="radio" aria-checked="false" data-i="2"><i style="background:#3d3d40"></i><span>Grafit</span></button>
+          </div>
+        </div>
+        <div class="cfg-group">
+          <div class="step"><b>2</b>Etui</div>
+          <div class="opts" role="radiogroup" aria-label="Etui">
+            <button class="opt" role="radio" aria-checked="true" data-price="0" data-short="Dzianina · w zestawie" data-name="etui z dzianiny"><span>Etui z dzianiny</span><small>W zestawie</small></button>
+            <button class="opt" role="radio" aria-checked="false" data-price="149" data-short="Skóra · +149 zł" data-name="etui skórzane"><span>Etui skórzane</span><small>+149 zł</small></button>
+          </div>
+        </div>
+        <div class="sum"><strong id="k-total">Razem 1 899 zł</strong><small>Dostawa jutro · 30 dni na zwrot</small></div>
       </div>
-      <div class="step"><b>3</b>Grawer <b style="font-weight:400">· opcjonalnie</b></div>
-      <input class="field" id="engrave" maxlength="4" placeholder="Inicjały, np. A.K. · bezpłatnie" aria-label="Inicjały do graweru">
-      <div class="sum"><strong id="k-total">Razem 1 899 zł</strong><small>Dostawa jutro · 30 dni na zwrot</small></div>
       <button class="btn" id="k-buy">Kup Lumen Halo · Kreda</button>
     </div>
   </section>
 
-  <section id="lekkosc" aria-label="Lekkość">
-    <div class="lek-copy">
-      <div class="lek-intro">
-        <p class="eb">Lekkość</p>
-        <p class="lead" style="margin-top:18px">Pałąk z dzianiny 3D rozkłada nacisk, a poduszki z pianki memory dopasowują się do ucha.</p>
-      </div>
-      <div class="lek-out">
-        <p class="eb">Lekkość</p>
-        <p class="big">268 g</p>
-        <h2 class="h2"><span>Po godzinie</span>o nich zapominasz.</h2>
-        <div class="chips"><span class="chip">Dzianina 3D</span><span class="chip">Pianka memory</span><span class="chip">Aluminium</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section id="dzien" aria-label="Cały dzień">
+  <section id="uzytkowanie" aria-label="Użytkowanie">
     <div class="day">
       <div>
-        <p class="eb">Cały dzień</p>
+        <p class="eb">Użytkowanie</p>
         <h2 class="h2" style="margin-top:14px"><span>Od rana do nocy.</span>I jeszcze zostaje.</h2>
       </div>
       <div class="clock"><b id="d-clock">7:00</b><span id="d-what">Dojazd · redukcja szumów włączona</span></div>
@@ -372,13 +387,19 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
       <div class="buy">
         <p class="eb">Lumen Halo</p>
         <div class="price">1 899 zł</div>
-        <div class="cta-row"><a class="btn" href="#kolory">Kup</a><button class="btn ghost" type="button">Umów odsłuch</button></div>
+        <div class="cta-row"><a class="btn" href="#konfiguracja">Kup</a><button class="btn ghost" type="button">Umów odsłuch</button></div>
         <small>Dostawa jutro, bezpłatnie · 30 dni na zwrot · 2 lata gwarancji</small>
       </div>
     </div>
     <footer><span>© 2026 Lumen</span><span>Prototyp strony · treści przykładowe</span></footer>
   </section>
 </main>
+
+<!-- tablet i telefon: pasek z ceną wsuwa się po kliknięciu próbki i zostaje do końca konfiguracji -->
+<div class="buybar" id="buybar" aria-hidden="true">
+  <div class="bb-price"><strong id="b-price">1 899 zł</strong><small id="b-what">Kreda · etui z dzianiny</small></div>
+  <a class="btn" href="#konfiguracja" tabindex="-1">Kup</a>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
