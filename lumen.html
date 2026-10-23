@@ -89,6 +89,12 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .lp.l { align-items: flex-end; text-align: right; }
 .lp h3 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--ink); }
 .lp p { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); white-space: nowrap; }
+/* tablet i telefon: opis w lewym dolnym rogu, nad nim pasek stanu z pięcioma odcinkami (aktywny wypełnia się przy przewijaniu) */
+.lp-bar { position: absolute; left: 0; top: 0; display: flex; gap: 6px; opacity: 0; pointer-events: none; }
+.lp-bar i { width: 36px; height: 3px; border-radius: 2px; background: rgba(29, 29, 31, .14); overflow: hidden; }
+.lp-bar b { display: block; height: 100%; border-radius: 2px; background: var(--ink); transform-origin: left; transform: scaleX(0); }
+.compact .lp { width: min(520px, calc(100vw - 2 * var(--pad))); }
+.compact .lp p { white-space: normal; }
 
 /* ---- 3. Lekkość ---- */
 .lek-copy { position: absolute; top: 50%; left: var(--pad); transform: translateY(-50%); width: min(520px, 40vw); display: grid; align-items: center; }
@@ -181,8 +187,7 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .hero-copy { padding-top: calc(var(--nav-h) + 20px); }
   .hero-copy .h1 { margin-top: 0; }
   .hero-copy .cta-row { margin-top: 28px; }
-  .lp { width: calc(100vw - 2 * var(--pad) - 130px); }
-  .lp p { white-space: normal; }
+  .lp-bar i { width: 28px; }
   .lek-copy { top: auto; bottom: 48px; transform: none; width: auto; right: var(--pad); }
   .lek-copy .h2 { font-size: 34px; }
   .big { font-size: 96px; }

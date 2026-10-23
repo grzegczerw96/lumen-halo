@@ -89,6 +89,12 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .lp.l { align-items: flex-end; text-align: right; }
 .lp h3 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--ink); }
 .lp p { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); white-space: nowrap; }
+/* tablet i telefon: opis w lewym dolnym rogu, nad nim pasek stanu z pięcioma odcinkami (aktywny wypełnia się przy przewijaniu) */
+.lp-bar { position: absolute; left: 0; top: 0; display: flex; gap: 6px; opacity: 0; pointer-events: none; }
+.lp-bar i { width: 36px; height: 3px; border-radius: 2px; background: rgba(29, 29, 31, .14); overflow: hidden; }
+.lp-bar b { display: block; height: 100%; border-radius: 2px; background: var(--ink); transform-origin: left; transform: scaleX(0); }
+.compact .lp { width: min(520px, calc(100vw - 2 * var(--pad))); }
+.compact .lp p { white-space: normal; }
 
 /* ---- 3. Lekkość ---- */
 .lek-copy { position: absolute; top: 50%; left: var(--pad); transform: translateY(-50%); width: min(520px, 40vw); display: grid; align-items: center; }
@@ -181,8 +187,7 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .hero-copy { padding-top: calc(var(--nav-h) + 20px); }
   .hero-copy .h1 { margin-top: 0; }
   .hero-copy .cta-row { margin-top: 28px; }
-  .lp { width: calc(100vw - 2 * var(--pad) - 130px); }
-  .lp p { white-space: normal; }
+  .lp-bar i { width: 28px; }
   .lek-copy { top: auto; bottom: 48px; transform: none; width: auto; right: var(--pad); }
   .lek-copy .h2 { font-size: 34px; }
   .big { font-size: 96px; }
@@ -778,7 +783,7 @@ scene.add(pivot);
 
 // ---------- Układ i ujęcia ----------
 // Ujęcia są funkcjami, bo zależą od proporcji ekranu (telefon: model nad tekstem, mniejszy).
-const L = { mobile: false, dist: 13 };
+const L = { mobile: false, compact: false, dist: 13 };
 const halfH = () => L.dist * Math.tan(degToRad(15));
 const halfW = () => halfH() * camera.aspect;
 const BASE = { px: 0, py: 0, pz: 0, rx: 0.08, ry: -0.9, rz: 0, s: 0.9, camY: 0.6, camTY: 0, bob: 1, alpha: 1 };
@@ -797,12 +802,13 @@ const fitRect = (r, maxS, hk = 1, wk = 0.85) => {
   const sH = (r.bottom - r.top) / innerHeight * H2 * 0.9 / (MODEL_H * hk), sW = (r.right - r.left) / innerWidth * W2 * 0.9 / (MODEL_H * wk);
   return { px: ((r.left + r.right) / 2 / innerWidth - 0.5) * W2, py: (0.5 - (r.top + r.bottom) / 2 / innerHeight) * H2, s: Math.min(maxS, sH, sW) };
 };
-const LP_MOB_H = 230; // pas na dole ekranu telefonu na aktywne zbliżenie i jego podpis
+const LP_MOB_H = 210; // pas na dole ekranu (tablet, telefon) na opis cechy i pasek stanu
 const P = {
   // Anatomia (lupa): duży model na środku smugi światła, ok. 58% wysokości ekranu; zbliżenia detali stoją wokół
   an: () => {
-    if (!L.mobile) return pose({ py: -0.5, rx: 0.12, ry: -0.9, s: 1.1 });
-    const f = fitIn(rel('.anat-head', '#design').bottom + 8, innerHeight - LP_MOB_H, 1.1);
+    if (!L.compact) return pose({ py: -0.5, rx: 0.12, ry: -0.9, s: 1.1 });
+    // tablet i telefon: model między tytułem a opisem z paskiem stanu na dole
+    const f = fitIn(rel('.anat-head', '#design').bottom + 8, innerHeight - LP_MOB_H, 2.4); // na wąskim ekranie kamera stoi dalej, więc skala może być większa
     return pose({ py: f.py, rx: 0.12, ry: -0.9, s: f.s });
   },
   lek: () => {
@@ -826,6 +832,7 @@ const appear = { v: 0 };
 function layout() {
   const w = innerWidth, h = innerHeight, a = w / h;
   L.mobile = w <= 560 || a < 5 / 6; // ten sam próg co w CSS
+  L.compact = L.mobile || w < 1100;  // tablet i telefon: Anatomia bez zbliżeń, opis z paskiem stanu w rogu
   L.dist = a < 1.15 ? 13 * 1.15 / Math.max(a, 0.46) * (L.mobile ? 0.82 : 1) : 13;
   renderer.setPixelRatio(Math.min(devicePixelRatio, L.mobile ? 1.5 : 1.75));
   renderer.setSize(w, h, false);
@@ -1129,7 +1136,7 @@ LP.forEach((l, i) => {
 const ovScene = new THREE.Scene(), ovCam = new THREE.OrthographicCamera(0, 1, 0, -1, -1, 1);
 LP.forEach((l) => ovScene.add(l.quad));
 const lpCam = new THREE.PerspectiveCamera(18, 1, 0.02, 60);
-const LP_M = 1.35, LP_LABEL_W = 300, LP_GAP = 40; // zapas kwadratu wokół koła (cień); szerokość podpisu jak w CSS; odstęp koła od modelu
+const LP_M = 1.35, LP_LABEL_W = 300, LP_GAP = 40, LP_COMPACT_BOTTOM = 40; // zapas kwadratu wokół koła (cień); szerokość podpisu jak w CSS; odstęp koła od modelu; odstęp opisu od dołu (tablet, telefon)
 let lpA = 0, lpD = 120, lpTop = 200;
 // narożniki prostopadłościanu wokół modelu (układ obracanej grupy): z nich co klatkę wychodzi obrys modelu na ekranie
 const boxCorners = [];
@@ -1138,13 +1145,27 @@ const boxCorners = [];
   const b = new THREE.Box3().setFromObject(halo);
   for (let k = 0; k < 8; k++) boxCorners.push(new THREE.Vector3(k & 1 ? b.max.x : b.min.x, k & 2 ? b.max.y : b.min.y, k & 4 ? b.max.z : b.min.z));
 }
+// Tablet i telefon (L.compact): bez zbliżeń. Na modelu pulsuje punkt opisywanej części, a opis stoi zawsze w lewym
+// dolnym rogu z paskiem stanu nad nim (5 odcinków, aktywny wypełnia się przy przewijaniu); punkt i tekst przenikają się
+// z następnymi, więc nic się nie zderza.
+const lpBar = document.createElement('div');
+lpBar.className = 'lp-bar'; lpBar.setAttribute('aria-hidden', 'true');
+lpBar.innerHTML = '<i><b></b></i>'.repeat(5);
+$('#design').appendChild(lpBar);
+const lpBarFill = $$('b', lpBar);
+let lpTextY = 0;
 function placeLoupes() {
   const W = innerWidth, H = innerHeight;
-  lpD = L.mobile ? Math.min(0.3 * W, 112) : Math.min(0.1 * W, 0.155 * H);
+  document.documentElement.classList.toggle('compact', L.compact);
+  lpD = Math.min(0.1 * W, 0.155 * H);
   const res = Math.min(512, Math.round(lpD * 1.4 * Math.min(devicePixelRatio, 2)));
   LP.forEach((l) => l.rt.setSize(res, res));
   ovCam.right = W; ovCam.bottom = -H; ovCam.updateProjectionMatrix();
   lpTop = rel('.anat-head', '#design').bottom + 24; // koła nie wchodzą na tytuł
+  // telefon i tablet: wszystkie opisy w jednym miejscu, wyrównane do dołu; pasek stanu nad najwyższym z nich
+  const pad = Math.max(24, 0.045 * W), hMax = Math.max(...LP.map((l) => l.el.offsetHeight));
+  lpTextY = H - LP_COMPACT_BOTTOM - hMax;
+  lpBar.style.transform = `translate(${pad}px, ${lpTextY - 26}px)`;
   // strona każdej cechy: po której stronie obrysu modelu leży jej punkt w jej własnym ujęciu
   LP.forEach((l, i) => {
     const p = featPose(i);
@@ -1160,54 +1181,61 @@ const wTmp = new THREE.Vector3(), dTmp = new THREE.Vector3(), cTmp = new THREE.V
 // v: postęp cech 0–5, a: krycie całej lupy. Renderuje widoczne zbliżenia do tekstur, ustawia koła, linie i podpisy.
 function drawLoupes(a, v) {
   if (a < 0.002) {
-    if (lpA >= 0.002) { LP.forEach((l) => { l.el.style.visibility = 'hidden'; l.quad.visible = false; l.line.style.opacity = l.dot.style.opacity = l.pulse.style.opacity = 0; }); lpA = a; }
+    if (lpA >= 0.002) {
+      LP.forEach((l) => { l.el.style.visibility = 'hidden'; l.quad.visible = false; l.line.style.opacity = l.dot.style.opacity = l.pulse.style.opacity = 0; });
+      lpBar.style.opacity = 0; lpA = a;
+    }
     return;
   }
   lpA = a;
-  const W = innerWidth, H = innerHeight, unit = halo.matrixWorld.getMaxScaleOnAxis();
+  const W = innerWidth, H = innerHeight, unit = halo.matrixWorld.getMaxScaleOnAxis(), compact = L.compact;
   // obrys modelu na ekranie
   let x0 = Infinity, x1 = -Infinity;
   boxCorners.forEach((c) => { cTmp.copy(c).applyMatrix4(pivot.matrixWorld).project(camera); const x = (cTmp.x * 0.5 + 0.5) * W; x0 = Math.min(x0, x); x1 = Math.max(x1, x); });
   const pad = Math.max(24, 0.045 * W), top = lpTop;
+  // pasek stanu (tablet, telefon): odcinki przed aktywnym pełne, aktywny wypełnia się w trakcie swojej cechy
+  lpBar.style.opacity = compact ? a : 0;
+  if (compact) lpBarFill.forEach((b, j) => { b.style.transform = `scaleX(${clamp(v - j + 0.15, 0, 1).toFixed(3)})`; });
   renderer.shadowMap.autoUpdate = false; // cienie policzone w głównym przebiegu
   LP.forEach((l, i) => {
-    // cecha i pojawia się od i, gaśnie tuż przed i + 1, kiedy już pojawia się następna; ostatnia gaśnie z sekcją
-    const vin = smooth(seg(v, i - 0.03, i + 0.25)), vout = i === 4 ? 1 : 1 - smooth(seg(v, i + 0.72, i + 0.98));
+    // cecha i pojawia się, gdy poprzednia już prawie zgasła, i gaśnie przed przejściem do następnej; ostatnia gaśnie z sekcją
+    const vin = smooth(seg(v, i - 0.22, i + 0.15)), vout = i === 4 ? 1 : 1 - smooth(seg(v, i + 0.55, i + 0.85));
     const vis = i === 0 ? vout : vin * vout, show = a * vis;
-    l.quad.visible = show > 0.002;
-    if (!l.quad.visible) { l.el.style.visibility = 'hidden'; l.line.style.opacity = l.dot.style.opacity = l.pulse.style.opacity = 0; return; }
+    l.quad.visible = !compact && show > 0.002;
+    if (show <= 0.002) { l.el.style.visibility = 'hidden'; l.line.style.opacity = l.dot.style.opacity = l.pulse.style.opacity = 0; return; }
     l.at.getWorldPosition(wTmp);
     const s = wTmp.clone().project(camera), ax = (s.x * 0.5 + 0.5) * W, ay = (-s.y * 0.5 + 0.5) * H;
+    l.dot.setAttribute('cx', ax); l.dot.setAttribute('cy', ay); l.dot.style.opacity = show;
+    l.pulse.setAttribute('cx', ax); l.pulse.setAttribute('cy', ay); l.pulse.style.opacity = show;
+    const st = l.el.style;
+    st.visibility = 'visible'; st.opacity = show;
+    if (compact) { // tylko punkt i opis w stałym miejscu
+      l.line.style.opacity = 0; l.el.classList.remove('l');
+      st.transform = `translate(${pad}px, ${lpTextY + (1 - vin) * 8}px)`;
+      return;
+    }
     // zbliżenie: kamera z bliska wzdłuż kierunku w układzie słuchawek
     dTmp.set(...l.dir).normalize().transformDirection(halo.matrixWorld);
     lpCam.position.copy(wTmp).addScaledVector(dTmp, (l.span * unit) / 2 / Math.tan(degToRad(9)));
     lpCam.lookAt(wTmp);
     renderer.setRenderTarget(l.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, lpCam);
-    // koło: tuż za obrysem modelu, po stronie punktu, na jego wysokości; przy pojawianiu się lekko rośnie
-    const d = lpD * lerp(0.9, 1, smooth(seg(v, i - 0.03, i + 0.5))), left = l.left; // strona stała dla cechy: podpis nie przeskakuje przy obrocie
-    let x, y;
-    if (L.mobile) { x = pad + d / 2; y = H - 132; }
-    else {
-      x = clamp(left ? x0 - LP_GAP - d / 2 : x1 + LP_GAP + d / 2, pad + d / 2, W - pad - d / 2);
-      y = clamp(ay - d * 0.35, top + d / 2, H - 150 - d / 2);
-    }
+    // koło: tuż za obrysem modelu, po stronie punktu (stałej dla cechy), na jego wysokości; przy pojawianiu się lekko rośnie
+    const d = lpD * lerp(0.9, 1, smooth(seg(v, i - 0.22, i + 0.4))), left = l.left;
+    const x = clamp(left ? x0 - LP_GAP - d / 2 : x1 + LP_GAP + d / 2, pad + d / 2, W - pad - d / 2);
+    const y = clamp(ay - d * 0.35, top + d / 2, H - 150 - d / 2);
     l.quad.position.set(x, -y, 0); l.quad.scale.setScalar(d * LP_M);
     l.mat.uniforms.uA.value = show; l.mat.uniforms.uPx.value = d;
     // linia od brzegu koła do punktu na modelu
     const dx = ax - x, dy = ay - y, len = Math.hypot(dx, dy) || 1, r = d / 2 + 8;
     l.line.setAttribute('d', `M${(x + dx / len * r).toFixed(1)},${(y + dy / len * r).toFixed(1)} L${ax.toFixed(1)},${ay.toFixed(1)}`);
     l.line.style.opacity = show * 0.5;
-    l.dot.setAttribute('cx', ax); l.dot.setAttribute('cy', ay); l.dot.style.opacity = show;
-    l.pulse.setAttribute('cx', ax); l.pulse.setAttribute('cy', ay); l.pulse.style.opacity = show;
-    // podpis pod kołem, wyrównany do krawędzi bliżej modelu (telefon: obok koła)
-    const st = l.el.style;
-    l.el.classList.toggle('l', left && !L.mobile);
-    st.visibility = 'visible'; st.opacity = show;
-    st.transform = L.mobile ? `translate(${x + d / 2 + 16}px, ${y - 30}px)`
-      : `translate(${left ? x + d / 2 - LP_LABEL_W : x - d / 2}px, ${y + d / 2 + 16 + (1 - vin) * 10}px)`;
+    // podpis pod kołem, wyrównany do krawędzi bliżej modelu
+    l.el.classList.toggle('l', left);
+    st.transform = `translate(${left ? x + d / 2 - LP_LABEL_W : x - d / 2}px, ${y + d / 2 + 16 + (1 - vin) * 10}px)`;
   });
   renderer.setRenderTarget(null);
   renderer.shadowMap.autoUpdate = true;
+  if (compact) return;
   renderer.autoClear = false;
   renderer.render(ovScene, ovCam);
   renderer.autoClear = true;
@@ -1284,8 +1312,10 @@ function scrollState(y) {
     S.light = 0.85 * (1 - seg(u, AN_U - 0.25, AN_U));
     S.bg = ANAT_BG.slice(1);
     // obrót zgrany z cechami: model obraca się do następnego ujęcia, gdy jedna cecha gaśnie, a następna się pojawia
-    const vi = clamp(v, 0, 5), k = Math.min(4, Math.floor(vi));
-    S.pose = k < 4 ? mixPose(featPose(k), featPose(k + 1), smooth(seg(vi - k, 0.68, 1))) : featPose(4);
+    // obrót trwa dłużej niż zmiana opisu (od połowy jednej cechy do początku następnej), więc jest łagodny
+    let f = 0; for (let k = 0; k < 4; k++) f += io(seg(v, k + 0.5, k + 1.2));
+    const k = Math.min(3, Math.floor(f));
+    S.pose = mixPose(featPose(k), featPose(k + 1), f - k);
     S.lp = smooth(seg(v, -0.45, -0.05)) * (1 - smooth(seg(u, AN_U - 0.35, AN_U - 0.12)));
     S.lpV = v;
   }
@@ -1330,20 +1360,24 @@ function setDay(h) {
 }
 
 // ---------- Pętla ----------
-let lastBg = '', dayActive = false, lastHead = '';
+let lastBg = '', dayActive = false, lastHead = '', lastTime = 0, ySm = null;
 const lpState = { a: 0, v: 0 };
 const headKids = $$('.anat-head > *');
 function frame(time) {
   const t = time;
+  // stan 3D idzie za przewijaniem z lekkim opóźnieniem (ok. 0,35 s): szybkie przewinięcie nie szarpie modelem,
+  // a teksty na osi czasu GSAP i tak doganiają przewijanie z opóźnieniem (scrub)
+  const dt = Math.min(0.1, Math.max(0, time - lastTime)); lastTime = time;
+  ySm = reduce || ySm == null ? window.scrollY : ySm + (window.scrollY - ySm) * (1 - Math.exp(-dt / 0.35));
   if (POSES) {
-    const S = scrollState(window.scrollY);
+    const S = scrollState(ySm);
     const ent = setEntrance(S.ent);
     Object.assign(rig, S.pose); rig.wave = S.wave; rig.vis = S.vis;
     rig.ry += ent.turn; rig.ent = ent.a;
     setLight(S.light, S.photo);
     // tytuł Anatomii pojawia się, gdy gaśnie zdjęcie, i stoi w miejscu, a sekcja dojeżdża pod niego
     // (przesuwane są dzieci nagłówka, bo cały nagłówek gasi oś czasu na końcu sekcji)
-    const y = window.scrollY, hIn = smooth(seg(y, B.hE * 0.55, B.hE * 0.85));
+    const y = window.scrollY, hIn = smooth(seg(ySm, B.hE * 0.55, B.hE * 0.85)); // położenie wg prawdziwego przewinięcia (sekcja jedzie z nim), krycie wg wygładzonego
     const head = hIn.toFixed(3) + Math.round(Math.max(0, B.dS - y));
     if (head !== lastHead) {
       headKids.forEach((el) => { el.style.opacity = hIn; el.style.transform = `translateY(${(-Math.max(0, B.dS - y) + (1 - hIn) * 24).toFixed(1)}px)`; });
