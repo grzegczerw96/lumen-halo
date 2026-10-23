@@ -75,10 +75,10 @@ const FEAT_H = 190; // wysokość opisu cechy na dole ekranu (telefon)
 const P = {
   // Anatomia: model przesunięty od strony opisu; obrót pokazuje opisywaną część
   ...Object.fromEntries([
-    [-0.13, -0.62, 0.12, -1.0, 0.78], [0.13, -0.62, 0.05, -1.42, 0.8], [0.13, -0.8, 0.55, -0.3, 0.8], [-0.15, -1.05, 0.2, -0.62, 0.98], [0.13, -0.62, 0.1, -0.6, 0.8],
+    [-0.13, -0.6, 0.12, -1.0, 1.0], [0.13, -0.6, 0.05, -1.42, 1.02], [0.13, -0.8, 0.55, -0.3, 1.02], [-0.15, -1.05, 0.2, -0.62, 1.18], [0.13, -0.6, 0.1, -0.6, 1.02],
   ].map(([x, y, rx, ry, s], i) => ['a' + i, () => {
     if (!L.mobile) return pose({ px: x * halfW(), py: y, rx, ry, s });
-    const f = fitIn(rel('.anat-head', '#design').bottom + 8, innerHeight - 72 - FEAT_H, 0.8);
+    const f = fitIn(rel('.anat-head', '#design').bottom + 8, innerHeight - 72 - FEAT_H, 1.0);
     return pose({ py: f.py, rx, ry, s: f.s * (i === 3 ? 1.1 : 1) });
   }])),
   lek: () => {
@@ -111,8 +111,7 @@ function layout() {
 }
 // ---------- Start i Anatomia: zdjęcie gaśnie, zostaje smuga światła, a w niej pojawiają się słuchawki ----------
 // Start to zdjęcie (warstwa .photo). Przy przewijaniu najpierw gaśnie tekst, potem zdjęcie, a pod koniec pojawia się
-// wąska, miękka smuga światła (.light). Tekst Anatomii wjeżdża dopiero na czyste tło. Słuchawki pojawiają się w smudze
-// na jeden z pięciu sposobów (przełącznik .variants, parametr ?wejscie=1–5), żeby porównać je na żywo.
+// wąska, miękka smuga światła (.light) i tytuł Anatomii. Słuchawki wyostrzają się w smudze jak w obiektywie.
 const ANAT_BG = '#e9e8e5';
 const photoEl = $('.photo'), lightEl = $('.light');
 let lastLight = '';
@@ -126,81 +125,10 @@ function setLight(a, photo) {
   photoEl.style.opacity = photo;
 }
 
-const ENTRANCES = [
-  { name: 'Ostrość', note: 'z rozmycia do ostrości, jak obiektyw' },
-  { name: 'Przenikanie', note: 'łagodne pojawienie się z lekkim uniesieniem' },
-  { name: 'Światło z boku', note: 'rozproszone światło z lewej odsłania bryłę' },
-  { name: 'Prześwietlenie', note: 'biała, prześwietlona sylwetka nabiera szczegółów' },
-  { name: 'Ziarno światła', note: 'bryła zbiera się z drobnego, świetlistego ziarna' },
-];
-let entrance = clamp(+(new URLSearchParams(location.search).get('wejscie') || 1), 1, 5) | 0;
-{
-  const box = $('#variants');
-  ENTRANCES.forEach((e, i) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.innerHTML = `${i + 1}<em> · ${e.name}</em>`; b.title = `${e.name}: ${e.note}`;
-    b.setAttribute('aria-pressed', String(i + 1 === entrance));
-    b.addEventListener('click', () => {
-      entrance = i + 1;
-      $$('button', box).forEach((x, k) => x.setAttribute('aria-pressed', String(k === i)));
-      history.replaceState(null, '', '?wejscie=' + entrance + location.hash);
-    });
-    box.appendChild(b);
-  });
-}
-
-// Wejścia 3 i 5 odsłaniają bryłę w shaderze: piksele powyżej progu są odrzucane, a przy samym progu świecą.
-// 3: próg biegnie w poprzek ekranu od strony światła (współrzędna x w świecie + szum), 5: próg samego szumu.
-const FILL = { value: 1 }, FMODE = { value: 0 }, FX = { value: new THREE.Vector2(-3, 3) };
-const FILL_GLSL = `
-uniform float uFill, uFMode; uniform vec2 uFX; varying vec3 vFillP, vFillW;
-float fillHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
-float fillNoise(vec3 p) {
-  vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix(fillHash(i), fillHash(i + vec3(1, 0, 0)), f.x), mix(fillHash(i + vec3(0, 1, 0)), fillHash(i + vec3(1, 1, 0)), f.x), f.y),
-             mix(mix(fillHash(i + vec3(0, 0, 1)), fillHash(i + vec3(1, 0, 1)), f.x), mix(fillHash(i + vec3(0, 1, 1)), fillHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
-}
-`;
-Object.entries(M).forEach(([k, m]) => {
-  m.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uFill: FILL, uFMode: FMODE, uFX: FX });
-    sh.vertexShader = 'varying vec3 vFillP, vFillW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vFillP = transformed; vFillW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = FILL_GLSL + sh.fragmentShader
-      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-  float fN = 0.65 * fillNoise(vFillP * 6.0) + 0.35 * fillNoise(vFillP * 23.0), fV = 0.0, fT = 1.0;
-  if (uFMode > 0.5) {
-    if (uFMode < 1.5) { fV = (vFillW.x - uFX.x) / (uFX.y - uFX.x) + (fN - 0.5) * 0.45; fT = uFill * 1.5 - 0.25; }
-    else { fV = fN; fT = uFill * 1.3 - 0.15; }
-    if (fV > fT) discard;
-  }`)
-      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-  totalEmissiveRadiance += vec3(1.0, 0.97, 0.9) * 1.6 * (1.0 - smoothstep(0.0, 0.08, fT - fV)) * step(0.5, uFMode) * step(uFill, 0.999);`);
-  };
-  m.customProgramCacheKey = () => 'fill-' + k;
-});
-
-// Wejście 3: rozproszone smugi światła wpadające z lewej, jak przez okno
-const sideEl = document.createElement('div');
-sideEl.className = 'sidelight';
-sideEl.setAttribute('aria-hidden', 'true');
-lightEl.after(sideEl);
-
-let shadowsOn = true;
-// e: postęp wejścia 0–1. Zwraca zmiany ujęcia i krycie płótna; ustawia shader, filtr płótna i ekspozycję.
+// e: postęp wejścia 0–1. Słuchawki przechodzą z rozmycia do ostrości i lekko dokręcają do pierwszego ujęcia.
 function setEntrance(e) {
-  const v = e >= 1 ? 0 : entrance, done = v === 0;
-  if (done !== shadowsOn) { halo.traverse((o) => { if (o.isMesh) o.castShadow = done; }); shadowsOn = done; } // mapa cieni nie zna progu szumu
-  FMODE.value = v === 3 ? 1 : v === 5 ? 2 : 0;
-  FILL.value = v === 3 ? smooth(seg(e, 0.1, 0.9)) : v === 5 ? smooth(seg(e, 0.05, 0.9)) : 1;
-  canvas.style.filter = v === 1 ? `blur(${(28 * (1 - smooth(e)) ** 1.5).toFixed(2)}px)` : '';
-  renderer.toneMappingExposure = v === 4 ? lerp(6, 1.05, smooth(seg(e, 0.15, 1))) : 1.05;
-  sideEl.style.opacity = v === 3 ? (Math.sin(Math.PI * clamp(e * 1.1, 0, 1)) * 0.9).toFixed(3) : 0;
-  sideEl.style.transform = `translateX(${lerp(-12, 6, e).toFixed(2)}vw)`;
-  const turn = 0.35 * (1 - io(e)); // we wszystkich wariantach model lekko dokręca do pierwszego ujęcia
-  if (v === 1) return { a: smooth(seg(e, 0, 0.6)), turn, lift: 0, scale: 1 };
-  if (v === 2) return { a: smooth(seg(e, 0, 0.8)), turn, lift: -0.35 * (1 - io(e)), scale: 0.94 + 0.06 * io(e) };
-  if (v === 4) return { a: smooth(seg(e, 0, 0.3)), turn, lift: 0, scale: 1 };
-  return { a: v === 0 ? 1 : smooth(seg(e, 0, 0.12)), turn: v === 0 ? 0 : turn, lift: 0, scale: 1 };
+  canvas.style.filter = e < 1 ? `blur(${(28 * (1 - smooth(e)) ** 1.5).toFixed(2)}px)` : '';
+  return { a: smooth(seg(e, 0, 0.6)), turn: 0.35 * (1 - io(e)) };
 }
 
 // ---------- Lekkość: słuchawki rozsypują się w drobinki, które składają się w piórko ----------
@@ -463,7 +391,7 @@ function measure() {
   B.eE = B.yE + innerHeight * 0.65;
   POSES = Object.fromEntries(Object.keys(P).map((k) => [k, P[k]()]));
 }
-const AN_0 = 1.4, AN_U = AN_0 + 5; // Anatomia: wejście słuchawek (0–1,2), potem 5 cech po 1 jednostce
+const AN_0 = 0.8, AN_U = AN_0 + 5; // Anatomia: dokończenie wejścia słuchawek, potem 5 cech po 1 jednostce
 const io = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2); // power2.inOut
 const seg = (y, a, b) => clamp((y - a) / (b - a), 0, 1);
 const mixPose = (a, b, t) => Object.fromEntries(KEYS.map((k) => [k, lerp(a[k], b[k], t)]));
@@ -473,19 +401,21 @@ const dipAt = (t) => (t < 0.5 ? 1 - smooth((t - 0.05) / 0.35) : smooth((t - 0.6)
 
 function scrollState(y) {
   const S = { wave: 0, vis: 1, bg: null, day: null, anat: -1, ent: 1, light: 0, photo: 0 };
+  // wejście słuchawek: od końca Startu (tytuł już stoi) do połowy pierwszej jednostki przypiętej Anatomii
+  const ent = seg(y, B.hE * 0.9, B.dS + (B.dE - B.dS) / AN_U * 0.5);
   if (y < B.dS) {
-    // Start (przypięty): najpierw gaśnie tekst (oś czasu), potem zdjęcie, a pod koniec pojawia się smuga światła.
-    // Potem Anatomia wjeżdża już na czyste tło; modelu jeszcze nie ma.
+    // Start (przypięty): najpierw gaśnie tekst (oś czasu), potem zdjęcie, a pod koniec pojawia się smuga światła
+    // i tytuł Anatomii (pętla); potem sekcja Anatomia dojeżdża pod stojący już tytuł.
     const t = seg(y, 0, B.hE);
-    S.pose = POSES.a0; S.ent = 0;
+    S.pose = POSES.a0; S.ent = ent;
     S.photo = 1 - smooth(seg(t, 0.3, 0.72));
     S.light = 0.85 * smooth(seg(t, 0.55, 1));
     S.bg = mixCol('#efebe5', ANAT_BG, seg(t, 0.3, 0.72));
   }
   else if (y <= B.dE) {
-    // Anatomia: wejście słuchawek (0–1,2), potem 5 cech od AN_0; przejście do kroku i trwa od i − 0,3 do i + 0,2
+    // Anatomia: 5 cech od AN_0; przejście do kroku i trwa od i − 0,3 do i + 0,2
     const u = seg(y, B.dS, B.dE) * AN_U, v = u - AN_0;
-    S.ent = seg(u, 0, 1.2);
+    S.ent = ent;
     S.light = 0.85 * (1 - seg(u, AN_U - 0.25, AN_U));
     S.bg = ANAT_BG.slice(1);
     let i = 0; while (i < 4 && v >= i + 0.7) i++;
@@ -533,7 +463,7 @@ function setDay(h) {
 }
 
 // ---------- Pętla ----------
-let lastBg = '', lastDot = -2, dayActive = false, variantsOn = false, lastHead = '';
+let lastBg = '', lastDot = -2, dayActive = false, lastHead = '';
 const headKids = $$('.anat-head > *');
 function frame(time) {
   const t = time;
@@ -541,14 +471,16 @@ function frame(time) {
     const S = scrollState(window.scrollY);
     const ent = setEntrance(S.ent);
     Object.assign(rig, S.pose); rig.wave = S.wave; rig.vis = S.vis;
-    rig.ry += ent.turn; rig.py += ent.lift; rig.s *= ent.scale; rig.ent = ent.a;
-    FX.value.set(rig.px - 0.45 * MODEL_H * rig.s, rig.px + 0.45 * MODEL_H * rig.s); // szerokość modelu w świecie: tędy biegnie próg wejścia 3
+    rig.ry += ent.turn; rig.ent = ent.a;
     setLight(S.light, S.photo);
-    // nagłówek Anatomii wjeżdża na czyste tło i łagodnie się pojawia (dzieci, bo całość gasi oś czasu na końcu sekcji)
-    const hIn = smooth(seg(window.scrollY, B.dS - innerHeight * 0.8, B.dS - innerHeight * 0.1)).toFixed(3);
-    if (hIn !== lastHead) { headKids.forEach((el) => { el.style.opacity = hIn; el.style.transform = `translateY(${(1 - hIn) * 40}px)`; }); lastHead = hIn; }
-    const showV = window.scrollY > B.hE * 0.6 && window.scrollY < B.dE;
-    if (showV !== variantsOn) { $('#variants').classList.toggle('show', showV); variantsOn = showV; }
+    // tytuł Anatomii pojawia się, gdy gaśnie zdjęcie, i stoi w miejscu, a sekcja dojeżdża pod niego
+    // (przesuwane są dzieci nagłówka, bo cały nagłówek gasi oś czasu na końcu sekcji)
+    const y = window.scrollY, hIn = smooth(seg(y, B.hE * 0.55, B.hE * 0.85));
+    const head = hIn.toFixed(3) + Math.round(Math.max(0, B.dS - y));
+    if (head !== lastHead) {
+      headKids.forEach((el) => { el.style.opacity = hIn; el.style.transform = `translateY(${(-Math.max(0, B.dS - y) + (1 - hIn) * 24).toFixed(1)}px)`; });
+      lastHead = head;
+    }
     if (S.day != null) setDay(S.day);
     dayActive = S.day != null;
     const bg = dayActive ? dayLight.bg : S.bg;
@@ -597,7 +529,7 @@ function timelines() {
 
   // 2. Anatomia: przypięta; najpierw wejście słuchawek, potem 5 kroków, w każdym jedna cecha
   // (pojawianie się nagłówka przy wjeździe sekcji liczy pętla, żeby działało też po skoku w środek strony)
-  const tA = gsap.timeline({ scrollTrigger: { id: 'design', trigger: '#design', start: 'top top', end: '+=545%', pin: true, scrub: SCRUB } });
+  const tA = gsap.timeline({ scrollTrigger: { id: 'design', trigger: '#design', start: 'top top', end: '+=495%', pin: true, scrub: SCRUB } });
   feats.forEach((el, i) => {
     tA.fromTo(el, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.2, immediateRender: false }, AN_0 + (i ? i + 0.12 : 0.05))
       .to(el, { autoAlpha: 0, y: -24, duration: 0.18 }, AN_0 + i + 0.72);

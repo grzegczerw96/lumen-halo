@@ -38,16 +38,6 @@ button { font: inherit; color: inherit; }
 .photo { position: fixed; inset: 0; z-index: 0; background: #efebe5 url(img/hero.jpg) 50% 50% / cover no-repeat; }
 .light { position: fixed; left: 50%; top: -6vh; width: min(70vw, 900px); height: 96vh; transform: translateX(-50%); z-index: 0; pointer-events: none; visibility: hidden; opacity: 0; filter: blur(48px); -webkit-mask-image: linear-gradient(#000 20%, transparent); mask-image: linear-gradient(#000 20%, transparent); }
 .light i { position: absolute; inset: 0; background: #fffefb; clip-path: polygon(44% 0, 56% 0, 71% 100%, 29% 100%); }
-/* wejście 3: rozproszone smugi światła wpadające z lewej (krycie i przesunięcie ustawia skrypt) */
-.sidelight { position: fixed; left: -10vw; top: -10vh; width: 80vw; height: 120vh; z-index: 0; pointer-events: none; opacity: 0; filter: blur(36px); background: repeating-linear-gradient(105deg, rgba(120,112,100,.12) 0 4vw, rgba(255,254,250,.95) 6vw 10vw, rgba(120,112,100,.12) 12vw 16vw); /* jasne pasy przedzielone półcieniem, jak światło przez okno */ -webkit-mask-image: linear-gradient(90deg, #000 30%, transparent); mask-image: linear-gradient(90deg, #000 30%, transparent); }
-/* przełącznik wariantów wejścia słuchawek (tylko prototyp) */
-.variants { position: fixed; left: 16px; bottom: 16px; z-index: 11; display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 14px; border-radius: 999px; background: rgba(255,255,255,.85); box-shadow: inset 0 0 0 1px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.12); backdrop-filter: blur(12px); font-size: 12px; transition: opacity .3s, visibility .3s; opacity: 0; visibility: hidden; max-width: calc(100vw - 32px); overflow-x: auto; }
-.variants.show { opacity: 1; visibility: visible; }
-.variants span { color: var(--muted); white-space: nowrap; margin-right: 4px; }
-.variants button { border: 0; background: none; padding: 7px 11px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; white-space: nowrap; }
-.variants button[aria-pressed="true"] { background: #111; color: #fff; }
-.variants em { font-style: normal; }
-@media (max-width: 760px) { .variants { left: 50%; transform: translateX(-50%); bottom: 8px; } .variants em { display: none; } .variants button { padding: 7px 12px; } }
 #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100lvh; z-index: 1; pointer-events: none; opacity: 0; }
 .lines { position: fixed; inset: 0; z-index: 3; pointer-events: none; width: 100vw; height: 100vh; }
 main { position: relative; z-index: 2; }
@@ -90,8 +80,8 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
 
 /* ---- 2. Anatomia ---- */
-#design { overflow: hidden; }
-.anat-head { position: absolute; top: calc(var(--nav-h) + clamp(16px, 4vh, 48px)); left: 0; right: 0; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 0 var(--pad); }
+#design { overflow-x: clip; } /* tytuł wychodzi w górę ponad sekcję, zanim ta dojedzie (patrz pętla w lumen.js) */
+.anat-head { position: absolute; top: calc(var(--nav-h) + 4px); left: 0; right: 0; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 0 var(--pad); }
 .anat-head .h2 { font-size: clamp(32px, 3.8vw, 54px); }
 .feat { position: absolute; top: 52%; width: min(400px, 30vw); display: flex; flex-direction: column; gap: 12px; visibility: hidden; opacity: 0; }
 .feat.l { left: var(--pad); }
@@ -265,7 +255,6 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
     <a class="btn" href="#kolory">Kup</a>
   </div>
 </header>
-<div class="variants" id="variants" role="group" aria-label="Wariant pojawiania się słuchawek"><span>Wejście słuchawek:</span></div>
 
 <main>
   <section id="start" aria-label="Start">
@@ -281,7 +270,6 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
 
   <section id="design" aria-label="Anatomia">
     <div class="anat-head">
-      <p class="eb">Anatomia</p>
       <h2 class="h2"><span>Każdy detal</span>w świetle dziennym.</h2>
     </div>
     <article class="feat r" data-anchor="ring"><span class="num">01 / 05</span><h3>Pierścień z aluminium</h3><p>Szczotkowany, toczony z jednego kawałka.</p></article>
