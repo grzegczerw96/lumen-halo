@@ -677,7 +677,11 @@ function frame(time) {
     if (S.day != null) setDay(S.day);
     dayActive = S.day != null;
     const bg = dayActive ? dayLight.bg : S.bg;
-    if (bg !== lastBg) { backdrop.style.backgroundColor = '#' + bg; lastBg = bg; }
+    if (bg !== lastBg) {
+      backdrop.style.backgroundColor = '#' + bg; lastBg = bg;
+      // na ciemnym tle (wieczór w Użytkowaniu) logo, koszyk i ikona menu są jasne
+      const c = new THREE.Color('#' + bg); document.documentElement.classList.toggle('nav-light', c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.25);
+    }
     lpState.a = S.lp; lpState.v = S.lpV;
     applyLook(S.col, S.white, dt);
     // strefa konfiguracji (granice z przypięć; ScrollTrigger liczy końce za przypiętą sekcją bez jej długości):

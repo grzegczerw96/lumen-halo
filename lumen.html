@@ -82,6 +82,10 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .mmenu nav a.on { color: var(--ink); }
 .mmenu nav a.on::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .mmenu .btn { width: 100%; }
+.logo, .bag, .burger { transition: color .5s; }
+.logo i { transition: filter .5s; }
+.nav-light:not(.menu-open) .logo, .nav-light:not(.menu-open) .bag, .nav-light:not(.menu-open) .burger { color: #f5f5f7; }
+.nav-light:not(.menu-open) .logo i { filter: invert(1); }
 .nav .btn { height: 33px; padding: 0 16px; font-size: 13px; }
 @media (max-width: 960px) { .menu { display: none; } .burger { display: flex; } }
 @media (min-width: 961px) { .mmenu { display: none; } }
