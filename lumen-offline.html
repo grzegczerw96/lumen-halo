@@ -83,15 +83,15 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 #design { overflow-x: clip; } /* tytuł wychodzi w górę ponad sekcję, zanim ta dojedzie (patrz pętla w lumen.js) */
 .anat-head { position: absolute; top: calc(var(--nav-h) + 4px); left: 0; right: 0; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 0 var(--pad); }
 .anat-head .h2 { font-size: clamp(32px, 3.8vw, 54px); }
-.feat { position: absolute; top: 52%; width: min(400px, 30vw); display: flex; flex-direction: column; gap: 12px; visibility: hidden; opacity: 0; }
-.feat.l { left: var(--pad); }
-.feat.r { right: var(--pad); }
-.feat .num { font-size: 14px; font-weight: 600; color: var(--faint); font-variant-numeric: tabular-nums; }
-.feat h3 { margin: 0; font-size: clamp(30px, 3.2vw, 46px); font-weight: 600; letter-spacing: -0.035em; line-height: 1.05; }
-.feat p { margin: 0; font-size: clamp(17px, 1.3vw, 20px); line-height: 1.5; color: var(--muted); }
-.dots { position: absolute; bottom: clamp(20px, 4vh, 40px); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
-.dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--line); transition: width .3s, background .3s; }
-.dots i.on { width: 22px; background: var(--ink); }
+/* Lupa: pięć okrągłych zbliżeń wokół modelu (koła rysuje WebGL, tu tylko podpisy pod nimi); położenie ustawia skrypt.
+   Aktywna cecha ma większy, czarny tytuł i opis, pozostałe tylko numer i nazwę. */
+.lp { position: absolute; left: 0; top: 0; width: 300px; display: flex; flex-direction: column; gap: 4px; visibility: hidden; opacity: 0; pointer-events: none; }
+.lp.r { align-items: flex-end; text-align: right; }
+.lp .num { font-size: 13px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
+.lp h3 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--muted); transition: font-size .35s, color .35s; }
+.lp p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--muted); white-space: nowrap; opacity: 0; transition: opacity .35s; }
+.lp.on h3 { font-size: 22px; color: var(--ink); }
+.lp.on p { opacity: 1; }
 
 /* ---- 3. Lekkość ---- */
 .lek-copy { position: absolute; top: 50%; left: var(--pad); transform: translateY(-50%); width: min(520px, 40vw); display: grid; align-items: center; }
@@ -182,7 +182,8 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .hero-copy { padding-top: calc(var(--nav-h) + 20px); }
   .hero-copy .h1 { margin-top: 16px; }
   .hero-copy .cta-row { margin-top: 28px; }
-  .feat { top: auto; bottom: 72px; left: var(--pad) !important; right: var(--pad) !important; width: auto; text-align: center; align-items: center; gap: 8px; }
+  .lp { width: calc(100vw - 2 * var(--pad) - 130px); }
+  .lp p { white-space: normal; }
   .lek-copy { top: auto; bottom: 48px; transform: none; width: auto; right: var(--pad); }
   .lek-copy .h2 { font-size: 34px; }
   .big { font-size: 96px; }
@@ -237,7 +238,7 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
 <div class="photo" aria-hidden="true"></div>
 <div class="light" aria-hidden="true"><i></i></div>
 <canvas id="stage" aria-hidden="true"></canvas>
-<svg class="lines" aria-hidden="true"><path id="leader" fill="none" stroke="#1d1d1f" stroke-width="1" opacity="0"/><circle id="leader-dot" r="5" fill="#fff" stroke="#1d1d1f" stroke-width="1.5" opacity="0"/></svg>
+<svg class="lines" id="lines" aria-hidden="true"></svg>
 
 <header class="nav" id="nav">
   <a class="logo" href="#start" aria-label="Lumen Halo, na początek"><i></i>Lumen <b>Halo</b></a>
@@ -271,12 +272,11 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
     <div class="anat-head">
       <h2 class="h2"><span>Każdy detal</span>w świetle dziennym.</h2>
     </div>
-    <article class="feat r" data-anchor="ring"><span class="num">01 / 05</span><h3>Pierścień z aluminium</h3><p>Szczotkowany, toczony z jednego kawałka.</p></article>
-    <article class="feat l" data-anchor="face"><span class="num">02 / 05</span><h3>Ceramiczna muszla</h3><p>Matowa, odporna na zarysowania i odciski.</p></article>
-    <article class="feat l" data-anchor="band"><span class="num">03 / 05</span><h3>Pałąk z dzianiny 3D</h3><p>Oddychająca tkanina bez szwów.</p></article>
-    <article class="feat r" data-anchor="arm"><span class="num">04 / 05</span><h3>Ruchome ramię</h3><p>Płynna regulacja, cicha jak zawiasy drzwi.</p></article>
-    <article class="feat l" data-anchor="foam"><span class="num">05 / 05</span><h3>Pianka memory</h3><p>Poduszki, które dopasowują się w 30 s.</p></article>
-    <div class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    <article class="lp"><span class="num">01</span><h3>Pierścień z aluminium</h3><p>Szczotkowany, toczony z jednego kawałka.</p></article>
+    <article class="lp"><span class="num">02</span><h3>Ceramiczna muszla</h3><p>Matowa, odporna na zarysowania i odciski.</p></article>
+    <article class="lp"><span class="num">03</span><h3>Pałąk z dzianiny 3D</h3><p>Oddychająca tkanina bez szwów.</p></article>
+    <article class="lp"><span class="num">04</span><h3>Ruchome ramię</h3><p>Płynna regulacja, cicha jak zawias drzwi.</p></article>
+    <article class="lp"><span class="num">05</span><h3>Pianka memory</h3><p>Poduszki, które dopasowują się w 30 s.</p></article>
   </section>
 
   <section id="lekkosc" aria-label="Lekkość">
@@ -792,16 +792,14 @@ const fitRect = (r, maxS, hk = 1, wk = 0.85) => {
   const sH = (r.bottom - r.top) / innerHeight * H2 * 0.9 / (MODEL_H * hk), sW = (r.right - r.left) / innerWidth * W2 * 0.9 / (MODEL_H * wk);
   return { px: ((r.left + r.right) / 2 / innerWidth - 0.5) * W2, py: (0.5 - (r.top + r.bottom) / 2 / innerHeight) * H2, s: Math.min(maxS, sH, sW) };
 };
-const FEAT_H = 190; // wysokość opisu cechy na dole ekranu (telefon)
+const LP_MOB_H = 230; // pas na dole ekranu telefonu na aktywne zbliżenie i jego podpis
 const P = {
-  // Anatomia: model przesunięty od strony opisu; obrót pokazuje opisywaną część
-  ...Object.fromEntries([
-    [-0.13, -0.6, 0.12, -1.0, 1.0], [0.13, -0.6, 0.05, -1.42, 1.02], [0.13, -0.8, 0.55, -0.3, 1.02], [-0.15, -1.05, 0.2, -0.62, 1.18], [0.13, -0.6, 0.1, -0.6, 1.02],
-  ].map(([x, y, rx, ry, s], i) => ['a' + i, () => {
-    if (!L.mobile) return pose({ px: x * halfW(), py: y, rx, ry, s });
-    const f = fitIn(rel('.anat-head', '#design').bottom + 8, innerHeight - 72 - FEAT_H, 1.0);
-    return pose({ py: f.py, rx, ry, s: f.s * (i === 3 ? 1.1 : 1) });
-  }])),
+  // Anatomia (lupa): duży model na środku smugi światła, ok. 58% wysokości ekranu; zbliżenia detali stoją wokół
+  an: () => {
+    if (!L.mobile) return pose({ py: -0.5, rx: 0.12, ry: -0.9, s: 1.1 });
+    const f = fitIn(rel('.anat-head', '#design').bottom + 8, innerHeight - LP_MOB_H, 1.1);
+    return pose({ py: f.py, rx: 0.12, ry: -0.9, s: f.s });
+  },
   lek: () => {
     if (!L.mobile) return pose({ px: 0.28 * halfW(), ry: -0.85, s: 0.9 });
     const f = fitIn(76, rel('.lek-copy', '#lekkosc').top - 8, 0.75);
@@ -816,7 +814,7 @@ const P = {
   end: () => ({ ...P.day(), alpha: 0 }),
 };
 const KEYS = Object.keys(BASE);
-const rig = { ...P.a0(), wave: 0, vis: 1, ent: 0 }; // vis: zanikanie przy przenosinach modelu między sekcjami
+const rig = { ...P.an(), wave: 0, vis: 1, ent: 0 }; // vis: zanikanie przy przenosinach modelu między sekcjami
 const drag = { x: 0, y: 0 };
 const appear = { v: 0 };
 
@@ -1059,21 +1057,131 @@ function cutAt(front) {
   return lo === 0 ? -1e3 : lo >= cutX.length ? 1e3 : cutX[lo];
 }
 
-// ---------- Anatomia: linia od opisu do części modelu ----------
-const feats = $$('.feat'), leader = $('#leader'), dot = $('#leader-dot'), dots = $$('.dots i');
+// ---------- Anatomia: zbliżenia detali (lupa) ----------
+// Pięć okrągłych zbliżeń wokół modelu. Każde to osobny widok kamery z bliska na część modelu (ten sam model i światło),
+// renderowany do tekstury i rysowany w kole na tym samym płótnie. Aktywna cecha ma większe koło, obwódkę, opis
+// i mocniejszą linię do punktu na modelu; przewijanie przechodzi po kolei przez 5 cech.
+// Cel i kierunek kamery są w układzie słuchawek (x: prawa muszla, y: góra, z: przód), więc zbliżenie obraca się z modelem.
+const rim = new THREE.Object3D();
+rim.position.set(0.21, -0.42, 0.72); // brzeg ceramicznego frontu z przodu: ceramika, polerowana fazka i bok pierścienia
+anchors.face.parent.add(rim);
+const bandFront = new THREE.Object3D();
+bandFront.position.copy(anchors.band.position).add(new THREE.Vector3(0.85, -0.6, 0)); // prawy bok łuku pałąka: zewnętrzna strona dzianiny
+anchors.band.parent.add(bandFront);
+const LP = [
+  { at: anchors.ring, dir: [0.75, 0.05, 0.66], span: 0.7 },   // pierścień z aluminium
+  { at: rim, dir: [0.62, -0.18, 0.76], span: 0.55 },         // ceramiczna muszla: pod kątem, żeby było widać grubość
+  { at: bandFront, dir: [0.55, 0.4, 0.73], span: 0.6 },      // pałąk z dzianiny: ukośnie na zewnętrzną stronę łuku, widać splot i przeszycie
+  { at: anchors.arm, dir: [0.6, 0.15, 0.8], span: 0.75 },     // ruchome ramię
+  { at: anchors.foam, dir: [0.45, -0.05, 0.89], span: 0.85 }, // pianka: poduszka lewej muszli od strony ucha, przez szczelinę
+];
+const lpEls = $$('.lp'), linesSvg = $('#lines');
+const NS = 'http://www.w3.org/2000/svg';
+LP.forEach((l, i) => {
+  l.el = lpEls[i];
+  l.line = document.createElementNS(NS, 'path'); l.line.setAttribute('fill', 'none'); l.line.setAttribute('stroke', '#1d1d1f'); l.line.setAttribute('stroke-width', '1');
+  l.pulse = document.createElementNS(NS, 'circle'); l.pulse.setAttribute('r', '13'); l.pulse.setAttribute('fill', 'rgba(255,255,255,.4)'); l.pulse.setAttribute('stroke', '#fff');
+  l.dot = document.createElementNS(NS, 'circle'); l.dot.setAttribute('r', '6'); l.dot.setAttribute('fill', '#fff'); l.dot.setAttribute('stroke', '#1d1d1f'); l.dot.setAttribute('stroke-width', '1.5');
+  linesSvg.append(l.line, l.pulse, l.dot);
+  l.rt = new THREE.WebGLRenderTarget(256, 256, { type: THREE.HalfFloatType, samples: 4 });
+  l.mat = new THREE.ShaderMaterial({
+    transparent: true, depthTest: false, depthWrite: false,
+    uniforms: { map: { value: l.rt.texture }, uA: { value: 0 }, uW: { value: 0 }, uPx: { value: 132 }, uBg: { value: new THREE.Color('#efeeeb').convertLinearToSRGB() } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      uniform sampler2D map; uniform float uA, uW, uPx; uniform vec3 uBg; varying vec2 vUv;
+      void main() {
+        const float M = 1.35;                  // połowa boku kwadratu / promień koła (zapas na cień i obwódkę)
+        vec2 p = (vUv * 2.0 - 1.0) * M;
+        float q = length(p), px = 2.0 / uPx;   // q = 1 na krawędzi koła, px = jeden piksel w tych jednostkach
+        vec4 img = texture2D(map, p * 0.5 + 0.5);
+        vec3 c = img.a > 0.001 ? linearToOutputTexel(vec4(toneMapping(img.rgb / img.a), 1.0)).rgb : uBg;
+        c = mix(uBg, c, img.a);
+        float inner = 1.0 - smoothstep(1.0 - 5.0 * px, 1.0 - 4.0 * px, q);   // zdjęcie w białej obwódce (4 px)
+        float disc = 1.0 - smoothstep(1.0 - px, 1.0, q);
+        vec3 col = mix(vec3(1.0), c, inner);
+        float ring = uW * (1.0 - smoothstep(0.6, 1.3, abs(q - 1.0 - 9.0 * px) / px));   // czarna obwódka aktywnego koła
+        float sh = (0.06 + 0.06 * uW) * exp(-pow(max(length(p - vec2(0.0, -0.07)) - 0.96, 0.0) * 5.0, 2.0)); // miękki cień pod kołem
+        vec4 outer = ring > sh ? vec4(vec3(0.11, 0.11, 0.12), ring) : vec4(vec3(0.0), sh);
+        vec4 res = mix(outer, vec4(col, 1.0), disc);
+        gl_FragColor = vec4(res.rgb, res.a * uA * mix(0.8, 1.0, uW));
+      }`,
+  });
+  l.quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), l.mat);
+  l.quad.frustumCulled = false;
+});
 const tmp = new THREE.Vector3();
-let anatActive = false;
-function drawLeader() {
-  let best = null, op = 0;
-  for (const el of feats) { const o = +gsap.getProperty(el, 'opacity'); if (o > op) { op = o; best = el; } }
-  if (!anatActive || !best || op < 0.02 || L.mobile) { leader.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); return; }
-  anchors[best.dataset.anchor].getWorldPosition(tmp).project(camera);
-  const ax = (tmp.x * 0.5 + 0.5) * innerWidth, ay = (-tmp.y * 0.5 + 0.5) * innerHeight;
-  const r = best.querySelector('h3').getBoundingClientRect(), right = best.classList.contains('r');
-  const sx = right ? r.left - 20 : r.right + 20, sy = r.top + r.height / 2, ex = sx + (right ? -48 : 48);
-  leader.setAttribute('d', `M${sx},${sy} H${ex} L${ax},${ay}`);
-  dot.setAttribute('cx', ax); dot.setAttribute('cy', ay);
-  leader.setAttribute('opacity', op * 0.55); dot.setAttribute('opacity', op);
+const ovScene = new THREE.Scene(), ovCam = new THREE.OrthographicCamera(0, 1, 0, -1, -1, 1);
+LP.forEach((l) => ovScene.add(l.quad));
+const lpCam = new THREE.PerspectiveCamera(18, 1, 0.02, 60);
+const LP_M = 1.35, LP_LABEL_W = 300; // zapas kwadratu wokół koła (cień, obwódka); szerokość podpisu jak w CSS
+let lpA = 0, lpV = 0, lpOn = -1;
+
+// sloty: dwa koła po lewej, trzy po prawej (jak w makiecie 1A); cechy trafiają do kolumny po tej stronie, po której
+// leżą na modelu, w kolejności od góry. Telefon: tylko aktywne koło, na dole po lewej, podpis obok.
+function placeLoupes() {
+  const p = POSES.an;
+  pivot.position.set(p.px, p.py, p.pz); pivot.rotation.set(p.rx, p.ry, p.rz, 'YXZ'); pivot.scale.setScalar(p.s); pivot.updateMatrixWorld(true);
+  camera.position.set(0, p.camY, L.dist); camera.lookAt(0, p.camTY, 0); camera.updateMatrixWorld();
+  const pr = LP.map((l, i) => { l.at.getWorldPosition(tmp).project(camera); return { i, x: tmp.x, y: -tmp.y }; });
+  const byX = [...pr].sort((a, b) => a.x - b.x), left = byX.slice(0, 2).sort((a, b) => a.y - b.y), right = byX.slice(2).sort((a, b) => a.y - b.y);
+  const W = innerWidth, H = innerHeight, d = Math.min(0.085 * W, 0.125 * H);
+  left.forEach((o, k) => { LP[o.i].slot = { x: 0.15 * W, y: [0.4, 0.68][k] * H, side: 'l' }; });
+  right.forEach((o, k) => { LP[o.i].slot = { x: 0.85 * W, y: [0.27, 0.52, 0.77][k] * H, side: 'r' }; });
+  const pad = Math.max(24, 0.045 * W);
+  LP.forEach((l) => {
+    l.d0 = L.mobile ? Math.min(0.3 * W, 112) : d;
+    if (L.mobile) l.slot = { x: pad + l.d0 / 2, y: H - 132, side: 'm' };
+    l.el.classList.toggle('r', l.slot.side === 'r'); // prawa kolumna: podpis wyrównany do prawej krawędzi koła
+    const res = Math.min(512, Math.round(l.d0 * 1.4 * Math.min(devicePixelRatio, 2)));
+    l.rt.setSize(res, res);
+  });
+  ovCam.right = W; ovCam.bottom = -H; ovCam.updateProjectionMatrix();
+}
+const wTmp = new THREE.Vector3(), dTmp = new THREE.Vector3();
+// v: postęp cech 0–5, a: krycie całej lupy. Renderuje zbliżenia do tekstur, ustawia koła, linie i podpisy.
+function drawLoupes(a, v) {
+  if (a < 0.002) {
+    if (lpA >= 0.002) { LP.forEach((l) => { l.el.style.visibility = 'hidden'; l.line.style.opacity = l.dot.style.opacity = l.pulse.style.opacity = 0; }); lpA = a; }
+    return;
+  }
+  lpA = a;
+  const vc = clamp(v, 0.5, 4.5), on = clamp(Math.floor(vc), 0, 4);
+  const unit = halo.matrixWorld.getMaxScaleOnAxis();
+  renderer.shadowMap.autoUpdate = false; // cienie policzone w głównym przebiegu
+  LP.forEach((l, i) => {
+    const w = clamp(1 - Math.max(0, Math.abs(vc - (i + 0.5)) - 0.35) / 0.3, 0, 1), sw = smooth(w);
+    const show = L.mobile ? a * sw : a;
+    l.at.getWorldPosition(wTmp);
+    const s = wTmp.clone().project(camera), ax = (s.x * 0.5 + 0.5) * innerWidth, ay = (-s.y * 0.5 + 0.5) * innerHeight;
+    // zbliżenie: kamera z bliska wzdłuż kierunku w układzie słuchawek
+    dTmp.set(...l.dir).normalize().transformDirection(halo.matrixWorld);
+    lpCam.position.copy(wTmp).addScaledVector(dTmp, (l.span * unit) / 2 / Math.tan(degToRad(9)));
+    lpCam.lookAt(wTmp);
+    if (show > 0.002) { renderer.setRenderTarget(l.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, lpCam); }
+    // koło
+    const d = l.d0 * (L.mobile ? 1 : lerp(1, 1.28, sw)), { x, y, side } = l.slot;
+    l.quad.position.set(x, -y, 0); l.quad.scale.setScalar(d * LP_M);
+    l.mat.uniforms.uA.value = show; l.mat.uniforms.uW.value = L.mobile ? 1 : sw; l.mat.uniforms.uPx.value = d;
+    l.quad.visible = show > 0.002;
+    // linia od brzegu koła do punktu na modelu
+    const dx = ax - x, dy = ay - y, len = Math.hypot(dx, dy) || 1, r = d / 2 + (sw > 0.5 && !L.mobile ? 14 : 6);
+    l.line.setAttribute('d', `M${(x + dx / len * r).toFixed(1)},${(y + dy / len * r).toFixed(1)} L${ax.toFixed(1)},${ay.toFixed(1)}`);
+    l.line.style.opacity = show * (0.22 + 0.33 * sw);
+    l.dot.setAttribute('cx', ax); l.dot.setAttribute('cy', ay); l.dot.style.opacity = show;
+    l.pulse.setAttribute('cx', ax); l.pulse.setAttribute('cy', ay); l.pulse.style.opacity = show * sw;
+    // podpis pod kołem (telefon: obok koła)
+    const st = l.el.style;
+    st.visibility = show > 0.002 ? 'visible' : 'hidden'; st.opacity = show;
+    st.transform = L.mobile ? `translate(${x + d / 2 + 16}px, ${y - 30}px)`
+      : `translate(${side === 'r' ? x + d / 2 - LP_LABEL_W : x - d / 2}px, ${y + d / 2 + 14}px)`;
+  });
+  renderer.setRenderTarget(null);
+  renderer.shadowMap.autoUpdate = true;
+  if (on !== lpOn) { LP.forEach((l, i) => l.el.classList.toggle('on', i === on)); lpOn = on; }
+  renderer.autoClear = false;
+  renderer.render(ovScene, ovCam);
+  renderer.autoClear = true;
 }
 
 // ---------- Światło: kolor dnia ----------
@@ -1111,6 +1219,7 @@ function measure() {
   Object.assign(B, { hE: g('hero').end, dS: g('design').start, dE: g('design').end, lS: g('lek').start, lE: g('lek').end, kS: g('kol').start, yS: g('day').start, yE: g('day').end });
   B.eE = B.yE + innerHeight * 0.65;
   POSES = Object.fromEntries(Object.keys(P).map((k) => [k, P[k]()]));
+  placeLoupes();
 }
 const AN_0 = 0.8, AN_U = AN_0 + 5; // Anatomia: dokończenie wejścia słuchawek, potem 5 cech po 1 jednostce
 const io = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2); // power2.inOut
@@ -1121,29 +1230,30 @@ const mixCol = (a, b, t) => cA.set(a).lerp(cB.set(b), t).getHexString();
 const dipAt = (t) => (t < 0.5 ? 1 - smooth((t - 0.05) / 0.35) : smooth((t - 0.6) / 0.35)); // zanika w połowie przenosin
 
 function scrollState(y) {
-  const S = { wave: 0, vis: 1, bg: null, day: null, anat: -1, ent: 1, light: 0, photo: 0 };
+  const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0 };
   // wejście słuchawek: od końca Startu (tytuł już stoi) do połowy pierwszej jednostki przypiętej Anatomii
   const ent = seg(y, B.hE * 0.9, B.dS + (B.dE - B.dS) / AN_U * 0.5);
   if (y < B.dS) {
     // Start (przypięty): najpierw gaśnie tekst (oś czasu), potem zdjęcie, a pod koniec pojawia się smuga światła
     // i tytuł Anatomii (pętla); potem sekcja Anatomia dojeżdża pod stojący już tytuł.
     const t = seg(y, 0, B.hE);
-    S.pose = POSES.a0; S.ent = ent;
+    S.pose = POSES.an; S.ent = ent;
     S.photo = 1 - smooth(seg(t, 0.3, 0.72));
     S.light = 0.85 * smooth(seg(t, 0.55, 1));
     S.bg = mixCol('#efebe5', ANAT_BG, seg(t, 0.3, 0.72));
   }
   else if (y <= B.dE) {
-    // Anatomia: 5 cech od AN_0; przejście do kroku i trwa od i − 0,3 do i + 0,2
+    // Anatomia (lupa): zbliżenia pojawiają się, gdy model jest już ostry, potem 5 cech od AN_0 po jednej jednostce;
+    // model stoi na środku i tylko lekko się obraca
     const u = seg(y, B.dS, B.dE) * AN_U, v = u - AN_0;
     S.ent = ent;
     S.light = 0.85 * (1 - seg(u, AN_U - 0.25, AN_U));
     S.bg = ANAT_BG.slice(1);
-    let i = 0; while (i < 4 && v >= i + 0.7) i++;
-    S.pose = i ? mixPose(POSES['a' + (i - 1)], POSES['a' + i], io(clamp((v - (i - 0.3)) / 0.5, 0, 1))) : POSES.a0;
-    S.anat = v >= 0 ? Math.min(4, Math.floor(v)) : -1;
+    S.pose = { ...POSES.an, ry: POSES.an.ry + 0.25 * (clamp(v / 5, 0, 1) - 0.5) };
+    S.lp = smooth(seg(v, -0.45, -0.05)) * (1 - smooth(seg(u, AN_U - 0.35, AN_U - 0.12)));
+    S.lpV = v;
   }
-  else if (y < B.lS) { const t = seg(y, B.dE, B.lS); S.pose = mixPose(POSES.a4, POSES.lek, t); S.bg = mixCol(ANAT_BG, '#e6e6ea', t); }
+  else if (y < B.lS) { const t = seg(y, B.dE, B.lS); S.pose = mixPose({ ...POSES.an, ry: POSES.an.ry + 0.125 }, POSES.lek, t); S.bg = mixCol(ANAT_BG, '#e6e6ea', t); }
   else if (y <= B.lE) {
     // Lekkość: rozsypanie (0,2–1,3), piórko i „268 g”, powrót do słuchawek (2,0–2,8)
     const u = seg(y, B.lS, B.lE) * 2.9;
@@ -1184,7 +1294,8 @@ function setDay(h) {
 }
 
 // ---------- Pętla ----------
-let lastBg = '', lastDot = -2, dayActive = false, lastHead = '';
+let lastBg = '', dayActive = false, lastHead = '';
+const lpState = { a: 0, v: 0 };
 const headKids = $$('.anat-head > *');
 function frame(time) {
   const t = time;
@@ -1206,8 +1317,7 @@ function frame(time) {
     dayActive = S.day != null;
     const bg = dayActive ? dayLight.bg : S.bg;
     if (bg !== lastBg) { backdrop.style.backgroundColor = '#' + bg; lastBg = bg; }
-    anatActive = S.anat >= 0;
-    if (S.anat !== lastDot) { dots.forEach((d, k) => d.classList.toggle('on', k === S.anat)); lastDot = S.anat; }
+    lpState.a = S.lp; lpState.v = S.lpV;
   }
   const bob = reduce ? 0 : Math.sin(t * 0.9) * 0.05 * rig.bob;
   pivot.position.set(rig.px, rig.py + bob, rig.pz);
@@ -1238,7 +1348,7 @@ function frame(time) {
   }
   canvas.style.opacity = rig.alpha * rig.vis * appear.v * rig.ent;
   renderer.render(scene, camera);
-  drawLeader();
+  drawLoupes(lpState.a * rig.ent, lpState.v);
 }
 
 // ---------- Przewijanie: przypięcia sekcji i teksty ----------
@@ -1248,15 +1358,11 @@ function timelines() {
     .to('.hero-copy', { y: -24, autoAlpha: 0, duration: 0.28, ease: 'power1.out' }, 0)
     .to({}, { duration: 1 }, 0);
 
-  // 2. Anatomia: przypięta; najpierw wejście słuchawek, potem 5 kroków, w każdym jedna cecha
-  // (pojawianie się nagłówka przy wjeździe sekcji liczy pętla, żeby działało też po skoku w środek strony)
+  // 2. Anatomia: przypięta; najpierw wejście słuchawek, potem 5 kroków lupy (koła, linie i podpisy liczy pętla,
+  // podobnie jak pojawianie się nagłówka przy wjeździe sekcji, żeby działało też po skoku w środek strony)
   const tA = gsap.timeline({ scrollTrigger: { id: 'design', trigger: '#design', start: 'top top', end: '+=495%', pin: true, scrub: SCRUB } });
-  feats.forEach((el, i) => {
-    tA.fromTo(el, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.2, immediateRender: false }, AN_0 + (i ? i + 0.12 : 0.05))
-      .to(el, { autoAlpha: 0, y: -24, duration: 0.18 }, AN_0 + i + 0.72);
-  });
-  // nagłówek i kropki gasną przed odjazdem sekcji, żeby nie przesuwały się nad stojącym modelem (stożek gaśnie w scrollState)
-  tA.to(['.anat-head', '.dots'], { autoAlpha: 0, y: -30, duration: 0.15 }, AN_U - 0.15)
+  // nagłówek gaśnie przed odjazdem sekcji, żeby nie przesuwał się nad stojącym modelem (stożek gaśnie w scrollState)
+  tA.to('.anat-head', { autoAlpha: 0, y: -30, duration: 0.15 }, AN_U - 0.15)
     .to({}, { duration: 0.1 }, AN_U - 0.1);
 
   // 3. Lekkość: tekst przed przemianą i „268 g” po niej
