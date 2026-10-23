@@ -1,0 +1,390 @@
+<title>Lumen Halo 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap">
+<style>
+/* Układ: przyklejona scena 3D na wysokość ekranu, przewijanie obraca produkt i zmienia kolor; pod nią trzy notatki techniczne. Jeden, świadomie jasny wygląd (światło dzienne). */
+:root {
+  --bg: #f1f0ee;
+  --surface: #ffffff;
+  --ink: #1d1d1f;
+  --muted: #6e6e73;
+  --line: #e2e1de;
+  --accent: #0066cc;
+  --font: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+.lt { font-weight: 300; }
+.eb { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+.story { position: relative; height: 300vh; }
+.stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; background: radial-gradient(ellipse 80% 70% at 50% 58%, #f1f0ee 0%, #ebeae7 60%, #dfddd9 100%); }
+/* światło: miękki promień z góry; słuchawki unoszą się w nim bez podłogi */
+.beam { position: absolute; left: 50%; top: -10%; width: min(70vw, 900px); height: 85%; transform: translateX(-50%); background: linear-gradient(180deg, rgba(255,255,253,.8), rgba(255,255,253,.2)); clip-path: polygon(38% 0, 62% 0, 82% 100%, 18% 100%); filter: blur(28px); pointer-events: none; }
+canvas#c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: pan-y; }
+canvas#c:active { cursor: grabbing; }
+
+.overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding-block: clamp(72px, 9vh, 104px) clamp(24px, 5vh, 48px); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: none; text-align: center; }
+.overlay > * { pointer-events: auto; }
+.head { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+h1 { margin: 0; font-size: clamp(36px, 5.2vw, 64px); font-weight: 600; letter-spacing: -0.04em; line-height: 1.02; text-wrap: balance; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.7); box-shadow: 0 8px 24px -16px rgba(0,0,0,.3); backdrop-filter: blur(12px); margin-top: 10px; }
+.seg button { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 10px 16px; border-radius: 999px; font: 500 15px/1 var(--font); color: var(--muted); cursor: pointer; }
+.seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.seg button:focus-visible, .pb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg i { width: 14px; height: 14px; border-radius: 7px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.14); }
+.bottom { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.buy { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: center; font-size: 17px; font-weight: 500; }
+.pb { border: 0; background: #111; color: #fff; border-radius: 999px; padding: 14px 24px; font: 500 15px/1 var(--font); cursor: pointer; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); }
+.tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.chip { font-size: 13px; color: var(--muted); background: rgba(255,255,255,.7); padding: 7px 12px; border-radius: 999px; }
+.zb { width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255,255,255,.8); color: var(--ink); font: 500 18px/1 var(--font); cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.zb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.load { font-size: 13px; font-weight: 500; color: var(--accent); cursor: pointer; padding: 7px 6px; border-radius: 6px; }
+.load:focus-within, .load:hover { text-decoration: underline; }
+.dropping .stage::after { content: 'Upuść plik .glb'; position: absolute; inset: 16px; display: grid; place-items: center; border: 2px dashed var(--accent); border-radius: 24px; background: rgba(255,255,255,.6); font-size: 20px; font-weight: 600; color: var(--ink); }
+.fallback { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
+
+.notes { padding-block: 96px 120px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--surface); }
+.notes-in { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+.notes h2 { margin: 10px 0 0; font-size: clamp(30px, 4vw, 48px); font-weight: 600; letter-spacing: -0.035em; line-height: 1.05; text-wrap: balance; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+.grid > div { min-width: 0; border-top: 1px solid var(--line); padding-top: 20px; }
+.grid h3 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.015em; }
+.grid p { margin: 10px 0 0; font-size: 15px; line-height: 1.6; color: var(--muted); max-width: 46ch; }
+.meter { display: flex; gap: 28px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.meter div { display: flex; flex-direction: column; gap: 4px; }
+.meter b { font-size: 34px; font-weight: 600; letter-spacing: -0.03em; }
+.meter span { font-size: 13px; color: var(--muted); }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .seg button { padding: 9px 12px; font-size: 14px; } }
+</style>
+
+<section class="story" id="story">
+  <div class="stage" id="stage">
+    <div class="beam"></div>
+    <canvas id="c" aria-label="Model 3D słuchawek Lumen Halo"></canvas>
+    <div class="overlay">
+      <div class="head">
+        <p class="eb">Kolory</p>
+        <h1><span class="lt">Trzy odcienie</span><br>jednego dnia.</h1>
+        <div class="seg" role="tablist" aria-label="Kolor">
+          <button id="c0" role="tab" aria-selected="true" data-i="0"><i style="background:#eceae6"></i>Kreda</button>
+          <button id="c1" role="tab" aria-selected="false" data-i="1"><i style="background:#d9cbb6"></i>Piasek</button>
+          <button id="c2" role="tab" aria-selected="false" data-i="2"><i style="background:#3d3d40"></i>Grafit</button>
+        </div>
+      </div>
+      <div class="bottom">
+        <div class="buy"><span id="price">Kreda — 1 899 zł</span><button class="pb" id="cta">Wybierz Kredę</button></div>
+        <p class="hint">Przeciągnij, aby obrócić. Ctrl + kółko, dwa palce lub dwuklik, aby powiększyć.</p>
+        <div class="tools">
+          <button class="zb" id="zout" type="button" aria-label="Pomniejsz">−</button>
+          <button class="zb" id="zin" type="button" aria-label="Powiększ">+</button>
+          <span class="chip" id="mstatus">Model: w kodzie, wg zdjęć</span>
+          <label class="load" for="glb">Wczytaj model .glb</label>
+          <input id="glb" type="file" accept=".glb,model/gltf-binary" multiple hidden>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="notes">
+  <div class="notes-in">
+    <div>
+      <p class="eb">Prototyp</p>
+      <h2>Jak to działa na stronie</h2>
+    </div>
+    <div class="grid">
+      <div>
+        <h3>Realizm</h3>
+        <p>Model jest zbudowany w kodzie według zdjęć produktu: idealnie okrągłe muszle, polerowane aluminium z fazką i dzianina melanżowa generowana w przeglądarce. Nie potrzebuje pliku 3D, a kolor zmienia się jednym parametrem. Model .glb z pliku CAD produktu można podłączyć w to samo miejsce.</p>
+      </div>
+      <div>
+        <h3>W HTML</h3>
+        <p>To zwykły element canvas na stronie. Działa w każdej współczesnej przeglądarce, również na telefonie. GSAP steruje obrotem przy przewijaniu i płynną zmianą koloru.</p>
+      </div>
+      <div>
+        <h3>Szybkość strony</h3>
+        <p>three.js i GSAP to około 200 KB po kompresji, model .glb zwykle 1–3 MB. Scena ładuje się dopiero, gdy sekcja zbliża się do ekranu, wcześniej widać zdjęcie. Gdy sekcja jest poza ekranem, renderowanie stoi.</p>
+      </div>
+    </div>
+    <div class="meter" aria-live="polite">
+      <div><b id="fps">—</b><span>klatek na sekundę na tym urządzeniu</span></div>
+      <div><b id="tris">—</b><span>trójkątów w modelu</span></div>
+      <div><b id="ttr">—</b><span>do pierwszej klatki</span></div>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { PALETTES, studioEnv, buildHalo, centerHalo } from './js/halo-model.js';
+
+const t0 = performance.now();
+const canvas = document.getElementById('c');
+const stage = document.getElementById('stage');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+} catch (e) {
+  const fb = document.createElement('div');
+  fb.className = 'fallback';
+  fb.textContent = 'Ta przeglądarka nie obsługuje WebGL. Na stronie w tym miejscu pokazalibyśmy zdjęcie produktu.';
+  stage.appendChild(fb);
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Neutral (Khronos PBR Neutral) zamiast ACES: biel zostaje białą, a nie szarą, kolory produktu się nie przesuwają
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.VSMShadowMap;
+
+const scene = new THREE.Scene();
+scene.environment = studioEnv(renderer);
+
+const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
+
+// Światło dzienne z góry: daje miękki cień na podłodze i odblaski na aluminium
+const sun = new THREE.DirectionalLight(0xfffaf2, 1.4);
+sun.position.set(1.5, 9, 3.5);
+sun.castShadow = true;
+// mniejsza mapa + duży promień = cień rozmyty jak pod softboksem (rozmycie ok. 5 cm zamiast 1,5 cm)
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.radius = 28;
+sun.shadow.blurSamples = 32;
+Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 20 });
+sun.shadow.bias = -0.0005;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d4cc, 0.2)); // resztę światła rozproszonego daje studio (env)
+// Słuchawki unoszą się w powietrzu i obracają w każdej osi, więc nie ma podłogi: model jest wyśrodkowany w punkcie obrotu.
+// Skala i położenie w kadrze jak wcześniej (wysokość 3,65, środek tam, gdzie był środek stojących słuchawek).
+const MODEL_H = 3.65, PIVOT_Y = -0.98 + MODEL_H / 2;
+const { halo, M } = buildHalo(renderer);
+centerHalo(halo, MODEL_H);
+const pivot = new THREE.Group();
+pivot.position.y = PIVOT_Y;
+pivot.add(halo);
+scene.add(pivot);
+const lerp = THREE.MathUtils.lerp;
+// Cienie zostają: słońce rzuca cień pałąka i muszli na siebie nawzajem przy każdym ustawieniu.
+
+function countTris() {
+  let tris = 0;
+  pivot.traverseVisible((o) => { if (!o.isMesh) return; tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
+  document.getElementById('tris').textContent = Math.round(tris / 1000) + ' tys.';
+}
+
+// ---- Modele .glb (np. z Meshy / Tripo): models/kreda.glb, piasek.glb, grafit.glb albo plik przeciągnięty na stronę ----
+const loader = new GLTFLoader();
+const SLOTS = ['kreda', 'piasek', 'grafit'];
+const TINT = ['#ffffff', '#e4d4ba', '#55555a']; // przebarwienie, gdy dla koloru nie ma osobnego modelu
+const custom = [null, null, null];
+const statusEl = document.getElementById('mstatus');
+
+function fit(root) {
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  root.scale.multiplyScalar(MODEL_H / Math.max(size.y, 1e-6)); // ta sama wysokość co model w kodzie
+  root.updateMatrixWorld(true);
+  box.setFromObject(root);
+  root.position.sub(box.getCenter(new THREE.Vector3())); // środek modelu w punkcie obrotu
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = o.receiveShadow = true;
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+      if ('envMapIntensity' in m) m.envMapIntensity = 0.75;
+      if (m.color && !m.userData.base) m.userData.base = m.color.clone();
+    });
+  });
+}
+function tintModel(root, hex, instant) {
+  const t = new THREE.Color(hex);
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+      if (!m.color || !m.userData.base) return;
+      const b = m.userData.base;
+      gsap.to(m.color, { r: b.r * t.r, g: b.g * t.g, b: b.b * t.b, duration: instant || reduce ? 0 : 0.9, ease: 'power2.out', onUpdate: () => (dirty = true) });
+    });
+  });
+}
+function show(i, instant) {
+  const any = custom.find(Boolean);
+  halo.visible = !any;
+  custom.forEach((m) => m && (m.visible = false));
+  if (!any) { statusEl.textContent = 'Model: w kodzie, wg zdjęć'; countTris(); dirty = true; return; }
+  const own = custom[i];
+  const m = own || any;
+  m.visible = true;
+  tintModel(m, own ? TINT[0] : TINT[i], instant);
+  statusEl.textContent = 'Model: ' + m.name + (own ? '' : ' (przebarwiony)');
+  countTris();
+  dirty = true;
+}
+function addModel(gltf, slot, label) {
+  if (custom[slot]) pivot.remove(custom[slot]);
+  const root = gltf.scene;
+  root.name = label;
+  fit(root);
+  custom[slot] = root;
+  pivot.add(root);
+  show(current, true);
+}
+// pliki opublikowane razem ze stroną
+SLOTS.forEach((s, i) => loader.loadAsync('models/' + s + '.glb').then((g) => addModel(g, i, s + '.glb')).catch(() => {}));
+// pliki z dysku: przycisk albo przeciągnij i upuść
+function loadFiles(files) {
+  [...files].filter((f) => /\.glb$/i.test(f.name)).forEach((f) => {
+    const n = f.name.toLowerCase();
+    const slot = SLOTS.findIndex((s) => n.includes(s));
+    f.arrayBuffer().then((buf) => loader.parse(buf, '', (g) => addModel(g, slot < 0 ? 0 : slot, f.name), (err) => {
+      statusEl.textContent = 'Nie udało się wczytać ' + f.name + '. Wyeksportuj GLB bez kompresji Draco.';
+      console.error(err);
+    }));
+  });
+}
+document.getElementById('glb').addEventListener('change', (e) => loadFiles(e.target.files));
+addEventListener('dragover', (e) => { e.preventDefault(); document.body.classList.add('dropping'); });
+addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.body.classList.remove('dropping'); });
+addEventListener('drop', (e) => { e.preventDefault(); document.body.classList.remove('dropping'); loadFiles(e.dataTransfer.files); });
+countTris();
+
+function resize() {
+  const { clientWidth: cw, clientHeight: ch } = stage;
+  renderer.setSize(cw, ch, false);
+  camera.aspect = cw / ch;
+  // model (~3,9 j. wysokości) zajmuje ok. 45% wysokości ekranu, nieco poniżej środka
+  const dist = camera.aspect < 0.9 ? 17 * 0.9 / Math.max(camera.aspect, 0.45) : 17;
+  camera.position.set(0, 2.2, dist);
+  applyZoom();
+}
+// Powiększenie: przyciski +/−, Ctrl/⌘ + kółko (także szczypanie na touchpadzie), dwa palce na ekranie dotykowym
+// i podwójne kliknięcie. Zwykłe kółko dalej przewija stronę, bo steruje animacją. Przy zbliżeniu kamera
+// celuje coraz bardziej w środek słuchawek, żeby nie uciekały z kadru.
+const LOOK_Y = 1.55, ZOOM_MAX = 2.6, view = { zoom: 1 };
+const clampZoom = (z) => THREE.MathUtils.clamp(z, 1, ZOOM_MAX);
+const titleEls = document.querySelectorAll('.head .eb, .head h1');
+function applyZoom() {
+  camera.zoom = view.zoom;
+  const fade = String(1 - THREE.MathUtils.smoothstep(view.zoom, 1.15, 1.6)); // przy zbliżeniu nagłówek gaśnie, żeby nie zasłaniał słuchawek
+  titleEls.forEach((el) => (el.style.opacity = fade));
+  camera.lookAt(0, lerp(LOOK_Y, PIVOT_Y, Math.min(1, (view.zoom - 1) * 1.5)), 0);
+  camera.updateProjectionMatrix();
+  dirty = true;
+}
+function zoomTo(z) { gsap.to(view, { zoom: clampZoom(z), duration: reduce ? 0 : 0.45, ease: 'power2.out', overwrite: true, onUpdate: applyZoom }); }
+document.getElementById('zin').addEventListener('click', () => zoomTo(view.zoom * 1.35));
+document.getElementById('zout').addEventListener('click', () => zoomTo(view.zoom / 1.35));
+canvas.addEventListener('dblclick', () => zoomTo(view.zoom > 1.3 ? 1 : 2));
+canvas.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  gsap.killTweensOf(view);
+  view.zoom = clampZoom(view.zoom * Math.exp(-e.deltaY * 0.004));
+  applyZoom();
+}, { passive: false });
+let dirty = true;
+addEventListener('resize', resize);
+
+// Zmiana koloru: płynne przejście wszystkich materiałów
+const segBtns = [...document.querySelectorAll('.seg button')];
+let current = 0;
+function setColor(i) {
+  if (i === current) return;
+  current = i;
+  const p = PALETTES[i];
+  const tw = (mat, hex) => { const c = new THREE.Color(hex); gsap.to(mat.color, { r: c.r, g: c.g, b: c.b, duration: reduce ? 0 : 0.9, ease: 'power2.out', onUpdate: () => (dirty = true) }); };
+  tw(M.ceramic, p.ceramic); tw(M.metal, p.metal); tw(M.lip, p.metal); tw(M.polish, p.metal); tw(M.cushion, p.cushion); tw(M.band, p.band); tw(M.inner, p.inner);
+  segBtns.forEach((b, k) => b.setAttribute('aria-selected', String(k === i)));
+  show(i);
+  document.getElementById('price').textContent = p.name + ' — 1 899 zł';
+  document.getElementById('cta').textContent = p.cta;
+}
+segBtns.forEach((b) => b.addEventListener('click', () => setColor(+b.dataset.i)));
+
+// Obrót: przewijanie (GSAP ScrollTrigger) i lekki ruch w spoczynku kręcą wokół osi pionowej modelu;
+// przeciąganie obraca swobodnie w każdej osi jak kulą: poziomo wokół pionu ekranu, pionowo wokół poziomu ekranu.
+// Po puszczeniu obrót wygasa z bezwładnością.
+const state = { scrollRot: 0, idle: 0 };
+const qDrag = new THREE.Quaternion(), qSpin = new THREE.Quaternion(), qStep = new THREE.Quaternion();
+const AXIS_Y = new THREE.Vector3(0, 1, 0), AXIS_X = new THREE.Vector3(1, 0, 0);
+const vel = { x: 0, y: 0 }; // radiany na klatkę
+function turn(dx, dy) {
+  qDrag.premultiply(qStep.setFromAxisAngle(AXIS_Y, dx)).premultiply(qStep.setFromAxisAngle(AXIS_X, dy));
+  dirty = true;
+}
+gsap.registerPlugin(ScrollTrigger);
+let lastIdx = 0;
+ScrollTrigger.create({
+  trigger: '#story', start: 'top top', end: 'bottom bottom', scrub: reduce ? false : 0.8,
+  onUpdate: (st) => {
+    if (!reduce) gsap.to(state, { scrollRot: st.progress * Math.PI * 1.5, duration: 0.6, ease: 'power2.out', overwrite: true, onUpdate: () => (dirty = true) });
+    const idx = Math.min(2, Math.floor(st.progress * 3));
+    if (idx !== lastIdx) { lastIdx = idx; setColor(idx); }
+  },
+});
+// Na telefonie ruch zaczęty w pionie przewija stronę (touch-action: pan-y); zaczęty w poziomie obraca model,
+// a dalej można prowadzić palec w dowolną stronę.
+// Dwa palce: rozsuwanie powiększa, obrót wtedy stoi.
+let down = null, pinch = null;
+const touches = new Map();
+const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+canvas.addEventListener('pointerdown', (e) => {
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  canvas.setPointerCapture(e.pointerId);
+  vel.x = vel.y = 0;
+  if (touches.size === 2) { down = null; pinch = { d: spread(), z: view.zoom }; gsap.killTweensOf(view); return; }
+  down = { x: e.clientX, y: e.clientY, t: performance.now() };
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && touches.size === 2) { view.zoom = clampZoom(pinch.z * spread() / Math.max(pinch.d, 1)); applyZoom(); return; }
+  if (!down) return;
+  const now = performance.now(), dx = (e.clientX - down.x) * 0.008, dy = (e.clientY - down.y) * 0.008, k = 16 / Math.max(now - down.t, 1);
+  turn(dx, dy);
+  vel.x = dx * k; vel.y = dy * k;
+  Object.assign(down, { x: e.clientX, y: e.clientY, t: now });
+});
+const lift = (e) => { touches.delete(e.pointerId); if (touches.size < 2) pinch = null; };
+canvas.addEventListener('pointerup', (e) => { lift(e); if (!down || reduce || performance.now() - down.t > 80) vel.x = vel.y = 0; down = null; }); // przytrzymany w miejscu = bez rozpędu
+canvas.addEventListener('pointercancel', (e) => { lift(e); vel.x = vel.y = 0; down = null; });
+
+// Render tylko gdy coś się zmienia i gdy scena jest na ekranie
+let visible = true;
+new IntersectionObserver(([en]) => (visible = en.isIntersecting)).observe(stage);
+let first = true, frames = 0, last = performance.now();
+const fpsEl = document.getElementById('fps');
+gsap.ticker.add(() => {
+  const now = performance.now();
+  frames++;
+  if (now - last > 1000) { fpsEl.textContent = Math.round(frames * 1000 / (now - last)); frames = 0; last = now; }
+  if (!down && Math.abs(vel.x) + Math.abs(vel.y) > 1e-4) { turn(vel.x, vel.y); vel.x *= 0.93; vel.y *= 0.93; }
+  if (!visible || !dirty) return;
+  qSpin.setFromAxisAngle(AXIS_Y, -0.9 + state.scrollRot + state.idle); // start w ujęciu 3/4 jak na zdjęciach produktu
+  pivot.quaternion.copy(qDrag).multiply(qSpin);
+  renderer.render(scene, camera);
+  dirty = false;
+  if (first) { first = false; document.getElementById('ttr').textContent = (Math.round(performance.now() - t0) / 1000).toFixed(2) + ' s'; }
+});
+// lekki ruch w spoczynku, żeby było widać, że to 3D
+if (!reduce) gsap.to(state, { idle: 0.35, duration: 4, ease: 'sine.inOut', yoyo: true, repeat: -1, onUpdate: () => (dirty = true) });
+resize();
+</script>
