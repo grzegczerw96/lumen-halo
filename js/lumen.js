@@ -88,7 +88,14 @@ const P = {
     const r = rel('#spin', '#konfiguracja'), f = L.mobile ? fitRect(r, 2.4, 1, 0.8) : fitRect({ ...r, bottom: r.bottom - 22 }, 1.2, 1.15, 0.8); // telefon i tablet: bez podpisu „Przeciągnij” pod modelem
     return pose({ px: f.px, py: f.py, ry: -0.75, s: f.s, sway: 1 }); // na białym tle model powoli kołysze się na boki
   },
-  day: () => pose({ px: 0.66 * halfW(), py: (L.mobile ? 0.7 : 0.5) * halfH(), rx: 0.14, s: L.mobile ? 0.26 : 0.44 }), // telefon: w rzędzie nadtytułu, po prawej od „Użytkowanie”
+  day: () => {
+    // komputer: prawa część ekranu nad osią czasu; tablet i telefon: wolne miejsce między tytułem a zegarem
+    const h = rel('.day .h2', '#uzytkowanie'), c = rel('.clock b', '#uzytkowanie'), t = rel('.track', '#uzytkowanie'), pad = parseFloat(getComputedStyle($('.day')).paddingLeft);
+    const r = L.mobile ? { left: pad, right: innerWidth - pad, top: h.bottom + 16, bottom: c.top - 48 } /* zapas: wieczorem opis przy zegarze ma dwie linie */
+      : { left: innerWidth * 0.55, right: innerWidth - pad, top: 76, bottom: t.top - 24 }; // tytuł i zegar zajmują lewą część (ok. 40% szerokości)
+    const f = fitRect(r, 1.1, 1, 0.85);
+    return pose({ px: f.px, py: f.py, rx: 0.14, s: f.s });
+  },
   end: () => ({ ...P.day(), alpha: 0 }),
 };
 const KEYS = Object.keys(BASE);
@@ -375,6 +382,7 @@ LP.forEach((l, i) => {
   l.line = document.createElementNS(NS, 'path'); l.line.setAttribute('fill', 'none'); l.line.setAttribute('stroke', '#1d1d1f'); l.line.setAttribute('stroke-width', '1');
   l.pulse = document.createElementNS(NS, 'circle'); l.pulse.setAttribute('r', '13'); l.pulse.setAttribute('fill', 'rgba(255,255,255,.4)'); l.pulse.setAttribute('stroke', '#fff');
   l.dot = document.createElementNS(NS, 'circle'); l.dot.setAttribute('r', '6'); l.dot.setAttribute('fill', '#fff'); l.dot.setAttribute('stroke', '#1d1d1f'); l.dot.setAttribute('stroke-width', '1.5');
+  l.line.style.opacity = l.pulse.style.opacity = l.dot.style.opacity = 0;
   linesSvg.append(l.line, l.pulse, l.dot);
   l.rt = new THREE.WebGLRenderTarget(256, 256, { type: THREE.HalfFloatType, samples: 4 });
   l.mat = new THREE.ShaderMaterial({
@@ -558,8 +566,8 @@ const cA = new THREE.Color(), cB = new THREE.Color();
 const mixCol = (a, b, t) => cA.set(a).lerp(cB.set(b), t).getHexString();
 const dipAt = (t) => (t < 0.5 ? 1 - smooth((t - 0.05) / 0.35) : smooth((t - 0.6) / 0.35)); // zanika w połowie przenosin
 
-function scrollState(y) {
-  const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0, col: 0, white: 1 };
+function scrollState(y, yr = y) {
+  const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0, col: 0, white: 1, spin: 1 };
   // wejście słuchawek: razem z pojawianiem się tytułu (od 0,6 Startu) do połowy pierwszej jednostki przypiętej Anatomii
   const ent = seg(y, B.hE * 0.6, B.dS + (B.dE - B.dS) / AN_U * 0.5);
   if (y < B.dS) {
@@ -589,20 +597,23 @@ function scrollState(y) {
   // Anatomia → oferta: model przesuwa się do kolumny konfiguratora i lekko dokręca, tło przechodzi w białe
   // (model dochodzi do swojej kolumny, zanim wjedzie tekst)
   else if (y < B.kS) { const t = seg(y, B.dE, B.kS); S.pose = mixPose(featPose(4), POSES.kol, io(Math.min(1, t * 1.4))); S.bg = mixCol(ANAT_BG, '#ffffff', t); S.white = 1 - t; }
-  else if (y <= B.kE) {
+  else if (y <= B.kE && yr <= B.kE) {
     // Konfiguracja (przypięta): kolor idzie za przewijaniem, z postojem na każdym (Kreda, Piasek, Grafit)
     const p = seg(y, B.kS, B.kE);
     S.pose = POSES.kol; S.bg = 'ffffff'; S.white = 0;
     S.col = io(seg(p, 0.15, 0.35)) + io(seg(p, 0.5, 0.7));
   }
-  else if (y < B.yS) {
-    // Konfiguracja → Użytkowanie: słuchawki obracają się, w pierwszej połowie przechodzą w biel, a w połowie drogi gasną,
-    // żeby nie przejść przez tekst
-    // do połowy model jedzie w górę razem ze swoją sekcją (tekst nie najeżdża na niego), potem pojawia się w Użytkowaniu
-    const t = seg(y, B.kE, B.yS), up = (y - B.kE) / innerHeight * 2 * halfH();
-    S.pose = t < 0.5 ? { ...POSES.kol, py: POSES.kol.py + up } : { ...POSES.day }; S.pose.ry += io(t) * Math.PI;
-    S.vis = dipAt(t); S.bg = mixCol('#ffffff', BG_DAY[0][1], t);
-    S.col = 2; S.white = smooth(seg(t, 0, 0.45));
+  else if (y < B.yS || yr < B.yS) {
+    // Konfiguracja → Użytkowanie. Model jedzie w górę razem ze swoją sekcją, obraca się, przechodzi w biel i gaśnie
+    // razem z cieniem i podpisem; w Użytkowaniu pojawia się dopiero, gdy jego sekcja prawie dojechała, i wjeżdża razem z nią.
+    // Położenie i krycie liczy prawdziwe przewinięcie (yr), więc przy szybkim przewijaniu model nie zostaje w miejscu.
+    const t = seg(yr, B.kE, B.yS), ts = seg(y, B.kE, B.yS), u = innerHeight / (2 * halfH());
+    const out = 1 - smooth(seg(t, 0.12, 0.42)), inn = smooth(seg(t, 0.62, 0.92));
+    S.pose = t < 0.5 ? { ...POSES.kol, py: POSES.kol.py + (yr - B.kE) / u } : { ...POSES.day, py: POSES.day.py - Math.max(0, B.yS - yr) / u };
+    S.pose.ry += io(ts) * Math.PI;
+    S.vis = t < 0.5 ? out : inn; S.spin = out;
+    S.bg = mixCol('#ffffff', BG_DAY[0][1], t);
+    S.col = 2; S.white = smooth(seg(ts, 0, 0.4));
   }
   else if (y <= B.yE) { const u = seg(y, B.yS, B.yE); S.pose = { ...POSES.day, ry: POSES.day.ry + Math.PI + u * Math.PI * 2 }; S.day = lerp(7, 23, smooth((u - 0.04) / 0.76)); }
   else { const t = seg(y, B.yE, B.eE); S.pose = mixPose({ ...POSES.day, ry: POSES.day.ry + Math.PI * 3 }, { ...POSES.end, ry: POSES.end.ry + Math.PI * 3 }, t); S.bg = mixCol(BG_DAY[BG_DAY.length - 1][1], '#ffffff', t); }
@@ -639,7 +650,8 @@ function setDay(h) {
 // ---------- Pętla ----------
 let lastBg = '', dayActive = false, lastHead = '', lastTime = 0, ySm = null;
 const lpState = { a: 0, v: 0 };
-const navLinks = $$('.menu a'); let navOn = -1;
+const navLinks = $$('.menu a, .mmenu nav a'), NAV_SECT = ['#start', '#design', '#konfiguracja', '#uzytkowanie', '#dane']; let navOn = -1;
+const spinEl = $('#spin'); let lastSpin = 1;
 const headKids = $$('.anat-head > *');
 function frame(time) {
   const t = time;
@@ -648,7 +660,8 @@ function frame(time) {
   const dt = Math.min(0.1, Math.max(0, time - lastTime)); lastTime = time;
   ySm = reduce || ySm == null ? window.scrollY : ySm + (window.scrollY - ySm) * (1 - Math.exp(-dt / 0.35));
   if (POSES) {
-    const S = scrollState(ySm);
+    const S = scrollState(ySm, window.scrollY);
+    if (S.spin !== lastSpin) { spinEl.style.opacity = S.spin; lastSpin = S.spin; }
     const ent = setEntrance(S.ent);
     Object.assign(rig, S.pose); rig.wave = S.wave; rig.vis = S.vis;
     rig.ry += ent.turn; rig.ent = ent.a;
@@ -673,7 +686,7 @@ function frame(time) {
     if (zone !== barZone) { barZone = zone; showBar(); if (!zone) resetDrag(); }
     // menu: bieżąca sekcja, gdy jej góra minie 55% wysokości ekranu
     const h = innerHeight, on = [0, B.dS, B.kS, B.yS, B.yE + h].filter((s) => y >= s - 0.55 * h).length - 1;
-    if (on !== navOn) { navLinks.forEach((a, i) => a.classList.toggle('on', i === on)); navOn = on; }
+    if (on !== navOn) { navLinks.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === NAV_SECT[on])); navOn = on; }
   }
   const bob = reduce ? 0 : Math.sin(t * 0.9) * 0.05 * rig.bob;
   pivot.position.set(rig.px, rig.py + bob, rig.pz);
@@ -814,6 +827,22 @@ function resetDrag() { gsap.to(drag, { x: 0, y: 0, duration: reduce ? 0 : 0.8, e
   area.addEventListener('pointerup', up); area.addEventListener('pointercancel', up);
 }
 
+// ---------- Menu na telefon i tablet (M1): duże nazwy sekcji na białym tle, na dole „Umów odsłuch” ----------
+const burger = $('#burger'), mmenu = $('#mmenu');
+function setMenu(open) {
+  document.documentElement.classList.toggle('menu-open', open);
+  burger.setAttribute('aria-expanded', String(open));
+  burger.setAttribute('aria-label', open ? 'Zamknij menu' : 'Menu');
+  mmenu.inert = !open;
+  if (open) { $('#nav').classList.remove('hide'); if (lenis) lenis.stop(); mmenu.querySelector('a').focus({ preventScroll: true }); }
+  else if (lenis) lenis.start();
+}
+burger.addEventListener('click', () => setMenu(burger.getAttribute('aria-expanded') !== 'true'));
+$$('a', mmenu).forEach((a) => a.addEventListener('click', () => setMenu(false)));
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && burger.getAttribute('aria-expanded') === 'true') { setMenu(false); burger.focus(); } });
+matchMedia('(min-width: 961px)').addEventListener('change', (e) => { if (e.matches) setMenu(false); });
+mmenu.inert = true;
+
 // ---------- Płynne przewijanie i odnośniki ----------
 let lenis = null;
 if (!reduce) {
@@ -826,7 +855,7 @@ $$('a[href^="#"]').forEach((a) => a.addEventListener('click', (e) => {
   const target = $(a.getAttribute('href'));
   if (!target) return;
   e.preventDefault();
-  if (lenis) lenis.scrollTo(target, { duration: 1.6 });
+  if (lenis) lenis.scrollTo(target, { duration: 1.6, force: true });
   else target.scrollIntoView();
 }));
 
@@ -843,7 +872,7 @@ gsap.to(appear, { v: 1, duration: reduce ? 0 : 1.2, ease: 'power2.out', delay: 0
   const nav = $('#nav'); let lastY = scrollY;
   addEventListener('scroll', () => {
     const y = scrollY, d = y - lastY;
-    if (y < 80) nav.classList.remove('hide');
+    if (y < 80 || document.documentElement.classList.contains('menu-open')) nav.classList.remove('hide');
     else if (d > 6) nav.classList.add('hide');
     else if (d < -6) nav.classList.remove('hide');
     if (Math.abs(d) > 6 || y < 80) lastY = y;

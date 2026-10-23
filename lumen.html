@@ -69,8 +69,22 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .menu a.on { color: var(--ink); font-weight: 500; }
 .nav-end { display: flex; align-items: center; gap: 18px; }
 .bag { display: flex; color: var(--ink); }
+/* telefon i tablet (M1): dwie kreski obok koszyka zamieniają się w krzyżyk, menu zajmuje cały ekran pod nagłówkiem */
+.burger { display: none; width: 24px; height: 24px; padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; }
+.burger path { transform-box: view-box; transform-origin: 12px 12px; transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
+.menu-open .burger .b1 { transform: translateY(3px) rotate(45deg); }
+.menu-open .burger .b2 { transform: translateY(-3px) rotate(-45deg); }
+.mmenu { position: fixed; inset: 0; z-index: 9; display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--nav-h) + 44px) var(--pad) calc(40px + env(safe-area-inset-bottom)); background: #fff; opacity: 0; visibility: hidden; transition: opacity .3s, visibility 0s .3s; }
+.menu-open .mmenu { opacity: 1; visibility: visible; transition: opacity .3s; }
+.mmenu nav { display: flex; flex-direction: column; gap: 8px; }
+.mmenu nav a { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: clamp(32px, 5.8vw, 44px); font-weight: 600; letter-spacing: -0.04em; line-height: 1.15; color: var(--muted); text-decoration: none; opacity: 0; transform: translateY(12px); transition: opacity .35s, transform .45s cubic-bezier(.2, .8, .2, 1); }
+.menu-open .mmenu nav a { opacity: 1; transform: none; transition-delay: calc(80ms + var(--i) * 40ms); }
+.mmenu nav a.on { color: var(--ink); }
+.mmenu nav a.on::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.mmenu .btn { width: 100%; }
 .nav .btn { height: 33px; padding: 0 16px; font-size: 13px; }
-@media (max-width: 960px) { .menu { display: none; } }
+@media (max-width: 960px) { .menu { display: none; } .burger { display: flex; } }
+@media (min-width: 961px) { .mmenu { display: none; } }
 @media (max-width: 1099px) { :root { --pad: 40px; } }
 @media (max-width: 560px) { :root { --pad: 20px; } }
 
@@ -155,7 +169,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .clock span { font-size: 17px; font-weight: 500; color: var(--d-muted); }
 .track { position: relative; height: 92px; }
 .track .axis { position: absolute; left: 0; right: 0; top: 56px; height: 2px; background: var(--d-line); }
-.track .now { position: absolute; top: 0; bottom: 18px; width: 2px; background: var(--d-ink); left: 0; }
+.track .now { position: absolute; top: 0; height: 56px; width: 2px; background: var(--d-ink); left: 0; } /* kończy się na osi, nie zasłania godzin */
 .track .blk { position: absolute; top: 24px; height: 26px; border-radius: 9px; background: var(--d-line); overflow: hidden; }
 .track .blk i { position: absolute; inset: 0; background: var(--d-ink); transform-origin: left; transform: scaleX(0); }
 .track .blk span { position: absolute; bottom: 32px; left: 0; font-size: 13px; font-weight: 600; white-space: nowrap; }
@@ -297,8 +311,20 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   <div class="nav-end">
     <!-- koszyk: na razie prowadzi do konfiguracji, docelowo do podsumowania zamówienia -->
     <a class="bag" href="#konfiguracja" aria-label="Koszyk"><svg width="15" height="17" viewBox="0 0 15 17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M1.7 5h11.6l-.8 10.3H2.5z"/><path d="M4.8 7V3.9a2.7 2.7 0 0 1 5.4 0V7"/></svg></a>
+    <button class="burger" id="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="mmenu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path class="b1" d="M4 9h16"/><path class="b2" d="M4 15h16"/></svg></button>
   </div>
 </header>
+<!-- telefon i tablet: menu na cały ekran (M1) -->
+<div class="mmenu" id="mmenu">
+  <nav aria-label="Sekcje">
+    <a href="#start" style="--i:0">Start</a>
+    <a href="#design" style="--i:1">Design</a>
+    <a href="#konfiguracja" style="--i:2">Konfiguracja</a>
+    <a href="#uzytkowanie" style="--i:3">Użytkowanie</a>
+    <a href="#dane" style="--i:4">Dane techniczne</a>
+  </nav>
+  <a class="btn" href="#dane">Umów odsłuch</a>
+</div>
 
 <main>
   <section id="start" aria-label="Start">
