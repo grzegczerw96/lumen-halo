@@ -126,7 +126,7 @@ function setLight(a, photo) {
 // e: postęp wejścia 0–1. Słuchawki przechodzą z rozmycia do ostrości i lekko dokręcają do pierwszego ujęcia.
 function setEntrance(e) {
   canvas.style.filter = e < 1 ? `blur(${(28 * (1 - smooth(e)) ** 1.5).toFixed(2)}px)` : '';
-  return { a: smooth(seg(e, 0, 0.6)), turn: 0.35 * (1 - io(e)) };
+  return { a: smooth(seg(e, 0, 0.6)), turn: -0.35 * (1 - io(e)) }; // start jak dotąd (ry −0,8), potem obrót do środka, do pierwszej cechy
 }
 
 // ---------- Lekkość: słuchawki rozsypują się w drobinki, które składają się w piórko ----------
@@ -357,12 +357,16 @@ anchors.face.parent.add(rim);
 const bandSide = new THREE.Object3D();
 bandSide.position.copy(anchors.band.position).add(new THREE.Vector3(0.85, -0.6, 0)); // prawy bok łuku pałąka: zewnętrzna strona dzianiny
 anchors.band.parent.add(bandSide);
+const armL = new THREE.Object3D(); // przegub nad lewą muszlą: widać go po obrocie w drugą stronę
+armL.position.set(-anchors.arm.position.x, anchors.arm.position.y, anchors.arm.position.z);
+anchors.foam.parent.add(armL);
+// kolejność cech jak w HTML: poduszki, pierścień, ceramika, pałąk, ramię
 const LP = [
+  { at: anchors.foam, dir: [0.45, -0.05, 0.89], span: 0.85 }, // poduszki: lewa od strony ucha, przez szczelinę między muszlami
   { at: anchors.ring, dir: [0.75, 0.05, 0.66], span: 0.7 },   // pierścień z aluminium
   { at: rim, dir: [0.62, -0.18, 0.76], span: 0.55 },         // ceramiczna muszla: pod kątem, żeby było widać grubość
   { at: bandSide, dir: [0.55, 0.4, 0.73], span: 0.6 },       // pałąk z dzianiny: ukośnie na zewnętrzną stronę łuku, widać splot i przeszycie
-  { at: anchors.arm, dir: [0.6, 0.15, 0.8], span: 0.75 },     // ruchome ramię
-  { at: anchors.foam, dir: [0.45, -0.05, 0.89], span: 0.85 }, // pianka: poduszka lewej muszli od strony ucha, przez szczelinę
+  { at: armL, dir: [-0.6, 0.15, 0.8], span: 0.75 },          // ruchome ramię lewej muszli
 ];
 const lpEls = $$('.lp'), linesSvg = $('#lines');
 const NS = 'http://www.w3.org/2000/svg';
@@ -415,6 +419,16 @@ function placeLoupes() {
   LP.forEach((l) => l.rt.setSize(res, res));
   ovCam.right = W; ovCam.bottom = -H; ovCam.updateProjectionMatrix();
   lpTop = rel('.anat-head', '#design').bottom + 24; // koła nie wchodzą na tytuł
+  // strona każdej cechy: po której stronie obrysu modelu leży jej punkt w jej własnym ujęciu
+  LP.forEach((l, i) => {
+    const p = featPose(i);
+    pivot.position.set(p.px, p.py, p.pz); pivot.rotation.set(p.rx, p.ry, p.rz, 'YXZ'); pivot.scale.setScalar(p.s); pivot.updateMatrixWorld(true);
+    camera.position.set(0, p.camY, L.dist); camera.lookAt(0, p.camTY, 0); camera.updateMatrixWorld();
+    let x0 = Infinity, x1 = -Infinity;
+    boxCorners.forEach((c) => { cTmp.copy(c).applyMatrix4(pivot.matrixWorld).project(camera); x0 = Math.min(x0, cTmp.x); x1 = Math.max(x1, cTmp.x); });
+    l.at.getWorldPosition(wTmp).project(camera);
+    l.left = wTmp.x < (x0 + x1) / 2;
+  });
 }
 const wTmp = new THREE.Vector3(), dTmp = new THREE.Vector3(), cTmp = new THREE.Vector3();
 // v: postęp cech 0–5, a: krycie całej lupy. Renderuje widoczne zbliżenia do tekstur, ustawia koła, linie i podpisy.
@@ -444,7 +458,7 @@ function drawLoupes(a, v) {
     lpCam.lookAt(wTmp);
     renderer.setRenderTarget(l.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, lpCam);
     // koło: tuż za obrysem modelu, po stronie punktu, na jego wysokości; przy pojawianiu się lekko rośnie
-    const d = lpD * lerp(0.9, 1, smooth(seg(v, i - 0.03, i + 0.5))), left = ax < (x0 + x1) / 2;
+    const d = lpD * lerp(0.9, 1, smooth(seg(v, i - 0.03, i + 0.5))), left = l.left; // strona stała dla cechy: podpis nie przeskakuje przy obrocie
     let x, y;
     if (L.mobile) { x = pad + d / 2; y = H - 132; }
     else {
@@ -512,8 +526,9 @@ function measure() {
 }
 const AN_0 = 0.8, AN_U = AN_0 + 5;
 // ujęcie dla każdej cechy (obrót wokół osi pionowej i pochylenie): opisywana część zwrócona do widza.
-// Kolejność jak w LP: pierścień, ceramika, pałąk (lekko z góry), ramię, pianka (przez szczelinę między muszlami)
-const FEAT_ROT = [[-1.15, 0.12], [-1.45, 0.06], [-0.7, 0.32], [-1.0, 0.12], [-0.5, 0.1]];
+// Kolejność jak w LP: poduszki (przez szczelinę między muszlami), pierścień, ceramika, pałąk (lekko z góry),
+// ramię (pełny obrót w drugą stronę, do lewej muszli)
+const FEAT_ROT = [[-0.45, 0.1], [-1.15, 0.12], [-1.45, 0.06], [-0.7, 0.32], [1.0, 0.12]];
 const featPose = (i) => ({ ...POSES.an, ry: FEAT_ROT[i][0], rx: FEAT_ROT[i][1] }); // Anatomia: dokończenie wejścia słuchawek, potem 5 cech po 1 jednostce
 const io = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2); // power2.inOut
 const seg = (y, a, b) => clamp((y - a) / (b - a), 0, 1);

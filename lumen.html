@@ -174,10 +174,12 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
 /* ---- telefon i ekrany pionowe: model nad tekstem, opisy cech pod modelem, jedna kolumna.
    Szerokie, ale niskie okna (np. 800 × 700) zostają przy układzie obok siebie, bo tam się lepiej mieszczą. ---- */
 @media (max-width: 560px), (max-aspect-ratio: 5/6) {
-  .photo { background-position: 74% 50%; } /* słuchawki są po prawej stronie zdjęcia */
+  /* Start na telefonie i tablecie (pionowo): bez etykiety „Nowość”, zdjęcie przesunięte tak, żeby słuchawki były widoczne */
+  .photo { background-position: 85% 50%; }   /* tablet: całe słuchawki */
+  .badge { display: none; }
   #start { align-items: flex-start; }
   .hero-copy { padding-top: calc(var(--nav-h) + 20px); }
-  .hero-copy .h1 { margin-top: 16px; }
+  .hero-copy .h1 { margin-top: 0; }
   .hero-copy .cta-row { margin-top: 28px; }
   .lp { width: calc(100vw - 2 * var(--pad) - 130px); }
   .lp p { white-space: normal; }
@@ -207,6 +209,16 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .spec dt { font-size: 12px; }
   .buy { padding: 20px; gap: 12px; border-radius: 22px; }
   .buy .price { font-size: 30px; }
+}
+/* telefon: zdjęcie tak, żeby lewa słuchawka była widoczna w całości, i jeden przycisk (dwa nie mieszczą się obok siebie) */
+@media (max-width: 560px) {
+  .photo { background-position: 56% 50%; }
+  .hero-copy .cta-row .btn.ghost { display: none; }
+}
+/* tablet pionowo: większy nagłówek, tekst wyżej nad słuchawkami */
+@media (min-width: 561px) and (max-aspect-ratio: 5/6) {
+  .hero-copy { padding-top: calc(var(--nav-h) + 64px); }
+  .hero-copy .h1 { font-size: 64px; }
 }
 /* niskie ekrany (laptopy 13", okna przeglądarki z paskami): gęściej, żeby sekcje mieściły się w jednym ekranie */
 @media (max-height: 780px) and (min-aspect-ratio: 5/6) {
@@ -270,11 +282,11 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
     <div class="anat-head">
       <h2 class="h2"><span>Każdy detal</span>w świetle dziennym.</h2>
     </div>
+    <article class="lp"><h3>Miękkie poduszki</h3><p>Pianka memory w oddychającej dzianinie. Dopasowuje się w 30 s.</p></article>
     <article class="lp"><h3>Pierścień z aluminium</h3><p>Szczotkowany, toczony z jednego kawałka.</p></article>
     <article class="lp"><h3>Ceramiczna muszla</h3><p>Matowa, odporna na zarysowania i odciski.</p></article>
     <article class="lp"><h3>Pałąk z dzianiny 3D</h3><p>Oddychająca tkanina bez szwów.</p></article>
     <article class="lp"><h3>Ruchome ramię</h3><p>Płynna regulacja, cicha jak zawias drzwi.</p></article>
-    <article class="lp"><h3>Pianka memory</h3><p>Poduszki, które dopasowują się w 30 s.</p></article>
   </section>
 
   <section id="lekkosc" aria-label="Lekkość">
