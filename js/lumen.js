@@ -399,8 +399,8 @@ function frame(time) {
 
 // ---------- Przewijanie: przypięcia sekcji i teksty ----------
 function timelines() {
-  // 1. Start: delikatnie gaśnie tekst; zdjęcie i smuga światła są w scrollState
-  gsap.timeline({ scrollTrigger: { id: 'hero', trigger: '#start', start: 'top top', end: '+=160%', pin: true, scrub: SCRUB } })
+  // 1. Start (stoi dzięki CSS, patrz #start): delikatnie gaśnie tekst; zdjęcie i smuga światła są w scrollState
+  gsap.timeline({ scrollTrigger: { id: 'hero', trigger: '#start', start: 'top top', end: 'bottom bottom', scrub: SCRUB } })
     .to('.hero-copy', { y: -24, autoAlpha: 0, duration: 0.28, ease: 'power1.out' }, 0)
     .to({}, { duration: 1 }, 0);
 
