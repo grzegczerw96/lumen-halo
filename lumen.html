@@ -158,51 +158,96 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .bb-price small { font-size: 13px; color: var(--faint); }
 .buybar .btn { padding: 0 26px; }
 
-/* ---- 4. Użytkowanie (dzień) ---- */
+/* ---- 4. Użytkowanie: wymiary z Figmy (1440 × 900): nadtytuł 108, zegar → oś 32, oś → fakty 40.
+   Model stoi po prawej nad osią (miejsce liczy lumen.js). Od zmroku tło ciemnieje, więc tekst i karty przechodzą na jasne. ---- */
 #uzytkowanie { --d-ink: #1d1d1f; --d-muted: #6e6e73; --d-card: #ffffff; --d-line: #c9c8c4; color: var(--d-ink); transition: color .5s; }
-/* po zmroku tło ciemnieje, więc tekst i karty przechodzą na jasne */
 #uzytkowanie.night { --d-ink: #f5f5f7; --d-muted: #a1a1a6; --d-card: #26262a; --d-line: #4a4a4f; }
-#uzytkowanie.night .fact.dark { background: #f5f5f7; color: #1d1d1f; }
-#uzytkowanie.night .fact.dark span { color: #6e6e73; }
 .fact, .track .blk, .cell { transition: background .5s, box-shadow .5s; }
-.day { position: absolute; inset: 0; padding: calc(var(--nav-h) + clamp(12px, 3vh, 36px)) var(--pad) clamp(20px, 4vh, 40px); display: flex; flex-direction: column; gap: clamp(14px, 3vh, 32px); }
+.day { position: absolute; inset: 0; padding: 108px var(--pad) 52px; display: flex; flex-direction: column; }
 .day .eb { color: var(--d-muted); }
-.day .h2 { font-size: clamp(34px, 4vw, 58px); }
-.clock { display: flex; align-items: baseline; gap: 18px; margin-top: auto; }
-.clock b { font-size: clamp(56px, 7vw, 104px); font-weight: 300; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; line-height: 1; }
+.day .h2 { margin-top: 12px; font-size: clamp(34px, 3.75vw, 54px); letter-spacing: -0.04em; }
+.clock { display: flex; align-items: baseline; gap: 16px; margin-top: auto; }
+.clock b { font-size: clamp(56px, 7.2vw, 104px); font-weight: 300; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; line-height: 1.3; }
 .clock span { font-size: 17px; font-weight: 500; color: var(--d-muted); }
-.track { position: relative; height: 92px; }
+.track { position: relative; height: 92px; margin-top: 32px; }
 .track .axis { position: absolute; left: 0; right: 0; top: 56px; height: 2px; background: var(--d-line); }
 .track .now { position: absolute; top: 0; height: 56px; width: 2px; background: var(--d-ink); left: 0; } /* kończy się na osi, nie zasłania godzin */
 .track .blk { position: absolute; top: 24px; height: 26px; border-radius: 9px; background: var(--d-line); overflow: hidden; }
 .track .blk i { position: absolute; inset: 0; background: var(--d-ink); transform-origin: left; transform: scaleX(0); }
 .track .blk span { position: absolute; bottom: 32px; left: 0; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .track .hr { position: absolute; top: 66px; font-size: 12px; color: var(--d-muted); transform: translateX(-50%); font-variant-numeric: tabular-nums; }
-.battery { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.cell { width: 220px; height: 24px; border-radius: 8px; box-shadow: inset 0 0 0 2px var(--d-ink); padding: 4px; position: relative; }
-.cell::after { content: ''; position: absolute; right: -6px; top: 7px; width: 4px; height: 10px; border-radius: 0 3px 3px 0; background: var(--d-ink); }
+.track .hr:first-of-type { transform: none; }
+.track .hr:last-of-type { transform: translateX(-100%); }
+/* dół: bateria w kolumnach 1–5, dwa fakty w kolumnach 6–12 (siatka 12 kolumn, odstęp 24) */
+.day-foot { margin-top: 40px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center; }
+.battery { grid-column: 1 / 6; display: flex; align-items: center; gap: 16px; }
+.bat-txt { display: flex; align-items: center; gap: 16px; }
+.cell { width: 160px; height: 22px; border-radius: 7px; box-shadow: inset 0 0 0 2px var(--d-ink); padding: 4px; position: relative; flex: none; }
 .cell i { display: block; height: 100%; border-radius: 4px; background: var(--d-ink); width: 100%; }
 .battery b { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .battery span { font-size: 15px; color: var(--d-muted); }
-.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.fact { padding: clamp(16px, 2.4vh, 24px) 24px; border-radius: 20px; background: var(--d-card); display: flex; flex-direction: column; gap: 6px; opacity: 0; transform: translateY(24px); }
-.fact strong { font-size: clamp(20px, 1.8vw, 26px); font-weight: 600; letter-spacing: -0.02em; }
+.facts { grid-column: 6 / 13; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.fact { padding: 24px; border-radius: 20px; background: var(--d-card); display: flex; flex-direction: column; gap: 8px; }
+.fact strong { font-size: clamp(28px, 2.8vw, 40px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.2; }
 .fact span { font-size: 15px; color: var(--d-muted); }
-.fact.dark { background: #1d1d1f; color: #fff; }
-.fact.dark span { color: #b5b5ba; }
 
-/* ---- 5. Dane i zakup ---- */
-#dane { padding: calc(var(--nav-h) + 40px) var(--pad) 32px; display: flex; flex-direction: column; gap: clamp(24px, 5vh, 56px); justify-content: center; background: #fff; }
-.dane-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); gap: 5vw; align-items: start; }
-.spec { margin: 0; display: grid; grid-template-columns: 1fr; }
-.spec > div { display: grid; grid-template-columns: 180px 1fr; }
-.spec dt, .spec dd { margin: 0; padding: 16px 0; border-top: 1px solid #e8e8ed; font-size: 15px; }
+/* ---- 5. Dane techniczne: lewa kolumna to miejsce modelu (rozkłada się na części), po prawej tytuł i 8 wierszy.
+   Sekcja jest przypięta; tytuł i wiersze pojawiają się po kolei (lumen.js). ---- */
+#dane { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; padding: 108px var(--pad) 48px; }
+.dane-lane { grid-column: 1 / 7; grid-row: 1 / 3; margin-top: 42px; }
+.dane-head { grid-column: 7 / 13; }
+.dane-head .h2 { margin-top: 12px; font-size: clamp(34px, 3.75vw, 54px); letter-spacing: -0.04em; }
+.spec { grid-column: 7 / 13; margin: 48px 0 0; align-self: start; }
+.spec > div { display: flex; justify-content: space-between; gap: 24px; padding: 16px 0; border-top: 1px solid var(--line); }
+.spec dt, .spec dd { margin: 0; font-size: 15px; line-height: 20px; }
 .spec dt { color: var(--muted); }
-.buy { border-radius: 28px; background: #f5f5f7; padding: 36px; display: flex; flex-direction: column; gap: 18px; }
-.buy .price { font-size: 40px; font-weight: 600; letter-spacing: -0.03em; }
-.buy .cta-row .btn { flex: 1; }
-.buy small { font-size: 13px; color: var(--faint); }
-footer { font-size: 12px; color: var(--faint); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.spec dd { font-weight: 500; text-align: right; }
+.spec-more { display: none; }
+.sheet { width: min(560px, 100vw); max-height: 85vh; margin: auto auto 0; border: 0; border-radius: 28px 28px 0 0; padding: 12px 20px 32px; }
+.sheet::backdrop { background: rgba(28, 28, 31, .32); }
+.sheet .handle { width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 16px; }
+.sheet .spec { margin: 0; }
+.sheet .btn { width: 100%; margin-top: 16px; }
+
+/* ---- 6. Kontakt: na komputerze lewa kolumna to stałe miejsce modelu, tytuł i formularz po prawej. Formularz to prototyp:
+   po wysłaniu nic nie wychodzi ze strony, pokazuje się tylko podziękowanie. ---- */
+#kontakt { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; padding: 108px var(--pad) 48px; background: none; }
+.kon-lane { grid-column: 1 / 7; grid-row: 1; margin: 42px 0 120px; }
+.kon-copy { grid-column: 7 / 13; grid-row: 1; }
+.kon-copy .h2 { margin-top: 12px; font-size: clamp(34px, 3.75vw, 54px); letter-spacing: -0.04em; }
+.kon-copy .lead { margin-top: 24px; max-width: 560px; }
+.kform { margin-top: 40px; display: flex; flex-direction: column; gap: 24px; }
+.seg { align-self: flex-start; display: flex; padding: 4px; border-radius: 999px; background: #f5f5f7; }
+.seg button { border: 0; background: none; padding: 9px 16px; border-radius: 999px; font-size: 13px; color: var(--muted); cursor: pointer; transition: background .2s, box-shadow .2s, color .2s; }
+.seg button[aria-checked="true"] { background: #fff; color: var(--ink); font-weight: 500; box-shadow: 0 2px 6px rgba(0, 0, 0, .08); }
+.frow { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.fld { display: flex; flex-direction: column; gap: 8px; }
+.fld span { font-size: 13px; font-weight: 500; }
+.fld input, .fld textarea { font: 400 15px var(--font); color: var(--ink); padding: 15px 18px; border: 0; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); resize: none; }
+.fld input::placeholder, .fld textarea::placeholder { color: var(--faint); }
+.fld input:focus, .fld textarea:focus { outline: none; box-shadow: inset 0 0 0 2px var(--ink); }
+.fld textarea { height: 120px; }
+.consent { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+.consent input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); }
+.send { display: flex; align-items: center; gap: 24px; }
+.send small, .kon-note { font-size: 13px; color: var(--faint); }
+.kon-note { display: none; }
+.sent { margin: 0; font-size: 17px; font-weight: 500; }
+
+/* ---- 7. Stopka: odnośniki u góry, napis „Lumen Halo” na całą szerokość, na który spada piórko ---- */
+#stopka { display: flex; flex-direction: column; padding: 108px var(--pad) 32px; }
+.foot-top { display: flex; justify-content: space-between; gap: 32px; }
+.foot-cols { display: flex; gap: 64px; }
+.foot-cols div { display: flex; flex-direction: column; gap: 12px; }
+.foot-cols a { font-size: 15px; text-decoration: none; }
+.foot-cols a:hover { text-decoration: underline; }
+.foot-mail { font-size: 15px; font-weight: 500; text-decoration: none; margin-top: 29px; }
+.wm { position: relative; margin: auto 0 24px; font-size: calc((100vw - 2 * var(--pad)) * .195); line-height: .88; letter-spacing: -0.05em; font-weight: 300; white-space: nowrap; }
+.wm b { font-weight: 600; }
+/* punkt lądowania piórka (górna krawędź „Halo”) i miękki cień pod piórkiem */
+.wm .land { position: absolute; left: 66%; top: .09em; width: 1px; height: 1px; }
+.wm .fsh { position: absolute; left: 54%; width: 30%; top: .02em; height: .06em; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .18), transparent); filter: blur(6px); opacity: var(--land, 0); pointer-events: none; }
+.legal { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; color: var(--faint); }
 
 /* ---- telefon i ekrany pionowe: model nad tekstem, opisy cech pod modelem, jedna kolumna.
    Szerokie, ale niskie okna (np. 800 × 700) zostają przy układzie obok siebie, bo tam się lepiej mieszczą. ---- */
@@ -233,20 +278,28 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .opt::after { content: attr(data-short); font-size: 13px; color: var(--muted); white-space: nowrap; }
   .opt[aria-checked="true"]::after { color: var(--ink); font-weight: 500; }
   .buybar { display: flex; padding-top: 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
-  .facts { grid-template-columns: 1fr; gap: 8px; }
-  .fact { padding: 12px 18px; flex-direction: row; justify-content: space-between; align-items: baseline; }
-  .fact span { text-align: right; }
   .track .blk span { display: none; }
-  /* dane na telefonie: pary etykieta–wartość w dwóch kolumnach, zwięzła karta zakupu */
-  #dane { padding-top: calc(var(--nav-h) + 12px); gap: 18px; }
-  #dane .h2 { font-size: 30px; }
-  .dane-grid { grid-template-columns: 1fr; gap: 16px; }
-  .spec { grid-template-columns: 1fr 1fr; column-gap: 16px; }
-  .spec > div { display: block; padding: 8px 0; border-top: 1px solid #e8e8ed; }
-  .spec dt, .spec dd { padding: 0; border: 0; font-size: 14px; }
-  .spec dt { font-size: 12px; }
-  .buy { padding: 20px; gap: 12px; border-radius: 22px; }
-  .buy .price { font-size: 30px; }
+  .long { display: none; }
+  /* Użytkowanie (tablet): bateria nad podpisem, bez kafelków; model między tytułem a zegarem */
+  .day { padding-bottom: 48px; }
+  .day .h2, .dane-head .h2, .kon-copy .h2 { font-size: 44px; }
+  .clock b { font-size: 64px; }
+  .day-foot { display: block; }
+  .battery { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .facts { display: none; }
+  /* Dane: tytuł, pod nim model, na dole wiersze w dwóch kolumnach */
+  #dane { display: flex; flex-direction: column; padding-bottom: 40px; }
+  .dane-lane { flex: 1; min-height: 160px; margin: 8px 0; }
+  .spec { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+  .spec > div { padding: 12px 0; }
+  .sheet .spec { display: block; }
+  /* Kontakt: model mały obok tytułu, formularz na całą szerokość */
+  #kontakt { display: block; position: relative; padding-bottom: 40px; }
+  .kon-lane { position: absolute; right: var(--pad); top: 92px; width: 240px; height: 240px; margin: 0; }
+  .kon-copy .lead { max-width: 400px; }
+  /* Stopka: odnośniki, pod nimi e-mail */
+  .foot-top { flex-direction: column; gap: 32px; }
+  .foot-mail { margin-top: 0; }
 }
 /* telefon: zdjęcie tak, żeby lewa słuchawka była widoczna w całości, i jeden przycisk: czarny „Umów odsłuch” */
 @media (max-width: 560px) {
@@ -260,6 +313,47 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .buybar { padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
   .hero-copy .cta-row .btn:not(.ghost) { display: none; }
   .hero-copy .cta-row .btn.ghost { background: #111; color: #fff; box-shadow: none; }
+  /* Użytkowanie: opis pod zegarem, cztery godziny na osi, jeden kafelek */
+  .day { padding-top: 96px; }
+  .day .h2, .dane-head .h2, .kon-copy .h2 { font-size: 32px; }
+  .clock { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .clock b { font-size: 48px; }
+  .clock span { font-size: 15px; }
+  .track { margin-top: 16px; }
+  .track .hr.minor { display: none; }
+  .day-foot { margin-top: 24px; }
+  .battery { flex-direction: row; align-items: center; gap: 16px; }
+  .cell { width: 140px; }
+  .facts { display: grid; grid-template-columns: 1fr; margin-top: 24px; }
+  .fact:nth-child(2) { display: none; }
+  .fact { padding: 20px 24px; gap: 6px; }
+  .fact strong { font-size: 26px; }
+  /* Dane: pięć najważniejszych wierszy, reszta w arkuszu */
+  #dane { padding-top: 96px; }
+  .spec { display: block; }
+  .spec .opt-row { display: none; }
+  .sheet .spec .opt-row { display: flex; }
+  .spec-more { display: block; align-self: flex-start; margin-top: 16px; padding: 0; border: 0; background: none; font: 500 13px var(--font); color: var(--ink); cursor: pointer; }
+  /* Kontakt: nagłówek niżej (obok modelu), krótszy opis, pola jedno pod drugim, zgoda jako notka pod przyciskiem */
+  #kontakt { padding-top: 110px; }
+  .kon-lane { top: 84px; width: 128px; height: 128px; }
+  .kon-copy .lead { font-size: 15px; }
+  .kform { margin-top: 24px; gap: 16px; }
+  .seg { align-self: stretch; }
+  .seg button { flex: 1; }
+  .frow { grid-template-columns: 1fr; gap: 16px; }
+  .fld textarea { height: 100px; }
+  .consent, .send small { display: none; }
+  .send .btn { width: 100%; }
+  .kon-note { display: block; margin: -4px 0 0; font-size: 12px; }
+  /* Stopka: dwie kolumny odnośników, napis w dwóch wierszach; piórko ląduje na „Lumen” */
+  #stopka { padding-top: 96px; }
+  .foot-cols { flex-wrap: wrap; gap: 32px; }
+  .foot-cols div { width: calc(50% - 16px); }
+  .wm { font-size: calc((100vw - 40px) * .34); }
+  .wm span, .wm b { display: block; }
+  .wm .land { left: 55%; }
+  .wm .fsh { left: 30%; width: 50%; }
 }
 /* niskie telefony (np. 375 × 667): mniejsze odstępy, żeby model był duży */
 @media (max-width: 560px) and (max-height: 740px) {
@@ -277,11 +371,16 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
   .sw i { width: 48px; height: 48px; }
   .opt { padding: 10px 16px; }
   .config #k-buy { margin-top: 32px; }
-  #dane { padding-top: calc(var(--nav-h) + 12px); gap: 20px; }
-  #dane .h2 { font-size: clamp(30px, 3.4vw, 46px); }
-  .spec dt, .spec dd { padding: 9px 0; font-size: 14px; }
-  .buy { padding: 24px; gap: 12px; }
-  .buy .price { font-size: 32px; }
+  .day, #dane, #kontakt, #stopka { padding-top: 96px; }
+  .day { padding-bottom: 32px; }
+  .clock b { font-size: 72px; }
+  .day-foot { margin-top: 24px; }
+  .fact { padding: 16px 24px; }
+  .fact strong { font-size: 28px; }
+  .spec { margin-top: 32px; }
+  .spec > div { padding: 10px 0; }
+  .kform { margin-top: 24px; gap: 16px; }
+  .fld textarea { height: 72px; }
 }
 .no-webgl #stage { display: none; }
 /* menu chowa się przy przewijaniu w dół i wraca przy przewijaniu w górę */
@@ -311,6 +410,7 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
     <a href="#konfiguracja">Konfiguracja</a>
     <a href="#uzytkowanie">Użytkowanie</a>
     <a href="#dane">Dane techniczne</a>
+    <a href="#kontakt">Kontakt</a>
   </nav>
   <div class="nav-end">
     <!-- koszyk: na razie prowadzi do konfiguracji, docelowo do podsumowania zamówienia -->
@@ -326,8 +426,9 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
     <a href="#konfiguracja" style="--i:2">Konfiguracja</a>
     <a href="#uzytkowanie" style="--i:3">Użytkowanie</a>
     <a href="#dane" style="--i:4">Dane techniczne</a>
+    <a href="#kontakt" style="--i:5">Kontakt</a>
   </nav>
-  <a class="btn" href="#dane">Umów odsłuch</a>
+  <a class="btn" href="#kontakt">Umów odsłuch</a>
 </div>
 
 <main>
@@ -337,7 +438,7 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
       <h1 class="h1"><span>Słuchaj w pełnym</span>świetle.</h1>
       <div class="cta-row">
         <a class="btn" href="#konfiguracja">Kup — 1 899 zł</a>
-        <a class="btn ghost" href="#dane">Umów odsłuch</a>
+        <a class="btn ghost" href="#kontakt">Umów odsłuch</a>
       </div>
     </div>
   </section>
@@ -384,46 +485,86 @@ footer { font-size: 12px; color: var(--faint); display: flex; justify-content: s
 
   <section id="uzytkowanie" aria-label="Użytkowanie">
     <div class="day">
-      <div>
+      <div class="day-head">
         <p class="eb">Użytkowanie</p>
-        <h2 class="h2" style="margin-top:14px"><span>Od rana do nocy.</span>I jeszcze zostaje.</h2>
+        <h2 class="h2"><span>Od rana do nocy.</span>I wystarcza na dłużej.</h2>
       </div>
       <div class="clock"><b id="d-clock">7:00</b><span id="d-what">Dojazd · redukcja szumów włączona</span></div>
       <div class="track" id="d-track"><div class="axis"></div><div class="now" id="d-now"></div></div>
-      <div class="battery"><div class="cell"><i id="d-level"></i></div><b id="d-pct">100%</b><span id="d-note">baterii</span></div>
-      <div class="facts">
-        <div class="fact"><strong>40 h z ANC</strong><span>Ok. 5 takich dni bez ładowania.</span></div>
-        <div class="fact"><strong>5 min ładowania</strong><span>Wystarcza na 4 godziny muzyki.</span></div>
-        <div class="fact dark"><strong>268 g</strong><span>Pałąk z dzianiny 3D nie uciska.</span></div>
+      <div class="day-foot">
+        <div class="battery"><div class="cell"><i id="d-level"></i></div><div class="bat-txt"><b id="d-pct">100%</b><span id="d-note">baterii</span></div></div>
+        <div class="facts">
+          <div class="fact"><strong>40 godzin</strong><span>na jednym, pełnym ładowaniu</span></div>
+          <div class="fact"><strong>5 min ładowania</strong><span>wystarcza na 4 godziny słuchania</span></div>
+        </div>
       </div>
     </div>
   </section>
 
-  <section id="dane" aria-label="Dane techniczne i zakup">
-    <div>
+  <section id="dane" aria-label="Dane techniczne">
+    <div class="dane-lane" id="dane-lane" aria-hidden="true"></div>
+    <div class="dane-head">
       <p class="eb">Dane techniczne</p>
-      <h2 class="h2" style="margin-top:14px"><span>Wszystko,</span>co warto wiedzieć.</h2>
+      <h2 class="h2"><span>Wszystko,</span>co warto wiedzieć.</h2>
     </div>
-    <div class="dane-grid">
-      <dl class="spec">
-        <div><dt>Waga</dt><dd>268 g</dd></div>
-        <div><dt>Bateria</dt><dd>Do 40 h z włączoną redukcją szumów</dd></div>
-        <div><dt>Ładowanie</dt><dd>5 min ładowania wystarcza na 4 h muzyki</dd></div>
-        <div><dt>Redukcja szumów</dt><dd>Do −45 dB, dopasowuje się sama</dd></div>
-        <div><dt>Materiały</dt><dd>Ceramika, aluminium, dzianina 3D</dd></div>
-        <div><dt>Poduszki</dt><dd>Pianka memory, dopasowuje się w 30 s</dd></div>
-        <div><dt>Kolory</dt><dd>Kreda, Piasek, Grafit</dd></div>
-      </dl>
-      <div class="buy">
-        <p class="eb">Lumen Halo</p>
-        <div class="price">1 899 zł</div>
-        <div class="cta-row"><a class="btn" href="#konfiguracja">Kup</a><button class="btn ghost" type="button">Umów odsłuch</button></div>
-        <small>Dostawa jutro, bezpłatnie · 30 dni na zwrot · 2 lata gwarancji</small>
-      </div>
+    <dl class="spec" id="spec">
+      <div><dt>Waga</dt><dd>268 g</dd></div>
+      <div><dt>Czas pracy</dt><dd>do 40 h<span class="long"> z wyciszaniem hałasu</span></dd></div>
+      <div><dt>Szybkie ładowanie</dt><dd>5 min = 4 h słuchania</dd></div>
+      <div class="opt-row"><dt>Ładowanie do pełna</dt><dd>ok. 2 h, USB-C</dd></div>
+      <div><dt>Wyciszanie hałasu</dt><dd>aktywne<span class="long">, dopasowuje się samo</span></dd></div>
+      <div class="opt-row"><dt>Łączność</dt><dd>Bluetooth 5.3<span class="long">, dwa urządzenia naraz</span></dd></div>
+      <div><dt>Kolory</dt><dd>Kreda, Piasek, Grafit</dd></div>
+      <div class="opt-row"><dt>W zestawie</dt><dd>etui z dzianiny, kabel USB-C</dd></div>
+    </dl>
+    <button class="spec-more" type="button" id="spec-more">Wszystkie dane (8) →</button>
+  </section>
+
+  <section id="kontakt" aria-label="Kontakt">
+    <div class="kon-lane" id="kon-lane" aria-hidden="true"></div>
+    <div class="kon-copy">
+      <p class="eb">Kontakt</p>
+      <h2 class="h2"><span>Posłuchaj,</span>zanim kupisz.</h2>
+      <p class="lead">Umów bezpłatny odsłuch w salonie albo napisz do nas.<span class="long"> Odpowiadamy w ciągu jednego dnia roboczego.</span></p>
+      <form class="kform" id="kform" novalidate>
+        <div class="seg" role="radiogroup" aria-label="Temat">
+          <button type="button" role="radio" aria-checked="true">Odsłuch<span class="long"> w salonie</span></button>
+          <button type="button" role="radio" aria-checked="false">Pytanie</button>
+          <button type="button" role="radio" aria-checked="false">Serwis</button>
+        </div>
+        <div class="frow">
+          <label class="fld"><span>Imię</span><input name="imie" autocomplete="name" placeholder="Jan Kowalski"></label>
+          <label class="fld"><span>E-mail</span><input name="email" type="email" autocomplete="email" placeholder="jan@przyklad.pl"></label>
+        </div>
+        <label class="fld"><span>Wiadomość</span><textarea name="wiadomosc" placeholder="W czym możemy pomóc?"></textarea></label>
+        <label class="consent"><input type="checkbox" name="zgoda"> Zgadzam się na kontakt w sprawie tego zapytania.</label>
+        <div class="send"><button class="btn" type="submit">Wyślij zapytanie</button><small>Odpowiemy w ciągu 1 dnia roboczego.</small></div>
+        <p class="kon-note">Wysyłając, zgadzasz się na kontakt w sprawie zapytania.</p>
+        <p class="sent" id="sent" hidden>Dziękujemy. To prototyp, więc wiadomość nigdzie nie wyszła.</p>
+      </form>
     </div>
-    <footer><span>© 2026 Lumen</span><span>Prototyp strony · treści przykładowe</span></footer>
+  </section>
+
+  <section id="stopka" aria-label="Stopka">
+    <div class="foot-top">
+      <nav class="foot-cols" aria-label="Stopka">
+        <div><p class="eb">Lumen Halo</p><a href="#design">Design</a><a href="#konfiguracja">Konfiguracja</a><a href="#uzytkowanie">Użytkowanie</a><a href="#dane">Dane techniczne</a></div>
+        <div><p class="eb">Pomoc</p><a href="#kontakt">Umów odsłuch</a><a href="#kontakt">Dostawa i zwroty</a><a href="#kontakt">Gwarancja 2 lata</a><a href="#kontakt">Serwis</a></div>
+        <div><p class="eb">Informacje</p><a href="#stopka">Regulamin</a><a href="#stopka">Polityka prywatności</a><a href="#stopka">Cookies</a></div>
+      </nav>
+      <a class="foot-mail" href="mailto:kontakt@lumen-halo.pl">kontakt@lumen-halo.pl</a>
+    </div>
+    <p class="wm" aria-label="Lumen Halo"><span>Lumen</span> <b>Halo</b><i class="land" id="land"></i><i class="fsh" aria-hidden="true"></i></p>
+    <div class="legal"><span>© 2026 Lumen</span><span>Prototyp strony · treści przykładowe</span></div>
   </section>
 </main>
+
+<!-- telefon: wszystkie dane techniczne w arkuszu od dołu -->
+<dialog class="sheet" id="sheet" aria-label="Wszystkie dane techniczne">
+  <div class="handle" aria-hidden="true"></div>
+  <dl class="spec" id="spec-all"></dl>
+  <button class="btn" type="button" id="sheet-close">Zamknij</button>
+</dialog>
 
 <!-- tablet i telefon: pasek z ceną wsuwa się po kliknięciu próbki i zostaje do końca konfiguracji -->
 <div class="buybar" id="buybar" aria-hidden="true">

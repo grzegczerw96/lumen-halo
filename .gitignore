@@ -2,4 +2,5 @@
 do-ai-3d/
 wersje/
 models/
-_render.html
+_render*.html
+_pomiar.js

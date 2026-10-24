@@ -72,6 +72,7 @@ const fitRect = (r, maxS, hk = 1, wk = 0.85) => {
   return { px: ((r.left + r.right) / 2 / innerWidth - 0.5) * W2, py: (0.5 - (r.top + r.bottom) / 2 / innerHeight) * H2, s: Math.min(maxS, sH, sW) };
 };
 const LP_MOB_H = 210; // pas na dole ekranu (tablet, telefon) na opis cechy i pasek stanu
+const KON_R = [0.08, -0.75]; // obrót słuchawek w Kontakcie (jak w ofercie)
 const P = {
   // Anatomia (lupa): duży model na środku smugi światła, ok. 58% wysokości ekranu; zbliżenia detali stoją wokół
   an: () => {
@@ -81,8 +82,8 @@ const P = {
     const f = L.compact ? fitIn(top, innerHeight - LP_MOB_H, 2.4) : fitIn(top, innerHeight - 32, 1.1);
     return pose({ py: f.py, rx: 0.12, ry: -0.9, s: f.s });
   },
-  // ujęcie piórka (finał w Kontakcie, etap C); sekcja Lekkość wypadła, więc nie zależy od tekstu na stronie
-  lek: () => pose({ px: L.mobile ? 0 : 0.28 * halfW(), ry: -0.85, s: L.mobile ? 0.6 : 0.9 }),
+  // obrót, w którym powstaje piórko (finał): ten sam co w Kontakcie, bo tam słuchawki rozsypują się w piórko
+  lek: () => pose({ rx: KON_R[0], ry: KON_R[1] }),
   kol: () => {
     // model w lewej kolumnie (komputer) albo w pasie nad konfiguratorem (tablet, telefon)
     const r = rel('#spin', '#konfiguracja'), f = L.mobile ? fitRect(r, 2.4, 1, 0.8) : fitRect({ ...r, bottom: r.bottom - 22 }, 1.2, 1.15, 0.8); // telefon i tablet: bez podpisu „Przeciągnij” pod modelem
@@ -91,12 +92,15 @@ const P = {
   day: () => {
     // komputer: prawa część ekranu nad osią czasu; tablet i telefon: wolne miejsce między tytułem a zegarem
     const h = rel('.day .h2', '#uzytkowanie'), c = rel('.clock b', '#uzytkowanie'), t = rel('.track', '#uzytkowanie'), pad = parseFloat(getComputedStyle($('.day')).paddingLeft);
-    const r = L.mobile ? { left: pad, right: innerWidth - pad, top: h.bottom + 16, bottom: c.top - 48 } /* zapas: wieczorem opis przy zegarze ma dwie linie */
+    const r = L.mobile ? { left: pad, right: innerWidth - pad, top: h.bottom + 16, bottom: c.top - 72 } /* zapas: wieczorem opis przy zegarze ma dwie linie */
       : { left: innerWidth * 0.55, right: innerWidth - pad, top: 76, bottom: t.top - 24 }; // tytuł i zegar zajmują lewą część (ok. 40% szerokości)
     const f = fitRect(r, 1.1, 1, 0.85);
     return pose({ px: f.px, py: f.py, rx: 0.14, s: f.s });
   },
-  end: () => ({ ...P.day(), alpha: 0 }),
+  // Dane: komputer — lewa kolumna; tablet, telefon — między tytułem a wierszami. Liczone dla rozłożonego modelu (szerszy i wyższy).
+  dane: () => { const f = fitRect(rel('#dane-lane', '#dane'), L.mobile ? 2.4 : 1.4, 1.3, 1.25); return pose({ px: f.px, py: f.py, rx: 0.12, ry: -0.6, s: f.s, bob: 0.5 }); },
+  // Kontakt: złożony model w swoim miejscu (komputer: lewa kolumna, tablet i telefon: obok tytułu)
+  kon: () => { const f = fitRect(rel('#kon-lane', '#kontakt'), L.mobile ? 2.4 : 1.2, 1.05, 0.9); return pose({ px: f.px, py: f.py, rx: KON_R[0], ry: KON_R[1], s: f.s }); },
 };
 const KEYS = Object.keys(BASE);
 const rig = { ...P.an(), wave: 0, vis: 1, ent: 0 }; // vis: zanikanie przy przenosinach modelu między sekcjami
@@ -280,6 +284,7 @@ async function buildDust() {
   await idle();
   const N = L.mobile ? 28000 : 42000;
   pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); pivot.scale.setScalar(1); pivot.updateMatrixWorld(true);
+  explode(0); lastE = -1; // drobinki losowane z modelu złożonego
   const meshes = []; halo.traverse((o) => { if (o.isMesh) meshes.push(o); });
   const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
   const areas = meshes.map((m) => {
@@ -350,6 +355,28 @@ function cutAt(front) {
   let lo = 0, hi = cutK.length;
   while (lo < hi) { const m = (lo + hi) >> 1; if (cutK[m] < front) lo = m + 1; else hi = m; }
   return lo === 0 ? -1e3 : lo >= cutX.length ? 1e3 : cutX[lo];
+}
+
+// ---------- Dane techniczne: słuchawki rozkładają się na części ----------
+// Pałąk z ramionami w górę, muszle na boki i w dół, w każdej muszli front i pierścień na zewnątrz, poduszka do środka
+// (te same przesunięcia co w renderach do Figmy). Po rozłożeniu widać tył części, więc materiały rysują obie strony.
+Object.values(M).forEach((m) => { m.side = THREE.DoubleSide; });
+const tiltsE = halo.children.filter((c) => c.isGroup), bandE = halo.children.find((c) => c.isMesh);
+const basePos = new Map(); halo.traverse((o) => basePos.set(o, o.position.clone()));
+let lastE = -1;
+function explode(e) {
+  if (Math.abs(e - lastE) < 1e-4) return;
+  lastE = e;
+  basePos.forEach((p, o) => o.position.copy(p));
+  bandE.position.y += 0.55 * e;
+  tiltsE.forEach((t) => {
+    const side = Math.sign(t.position.x), [cup, stem, pin, sleeve] = t.children;
+    t.position.x += side * 0.55 * e; t.position.y -= 0.25 * e;
+    for (const p of [stem, pin, sleeve]) p.position.y += 0.55 * e; // ramię zostaje przy pałąku
+    const [face, lip, ring, cushion, driver] = cup.children;         // oś +z muszli = na zewnątrz
+    face.position.z += 0.7 * e; lip.position.z += 0.7 * e; ring.position.z += 0.32 * e;
+    cushion.position.z -= 0.45 * e; driver.position.z += 0.1 * e;
+  });
 }
 
 // ---------- Anatomia: zbliżenia detali (lupa) ----------
@@ -548,8 +575,8 @@ const B = {};            // granice sekcji w pikselach przewijania
 let POSES = null;        // ujęcia policzone dla bieżącego rozmiaru ekranu
 function measure() {
   const g = (id) => ScrollTrigger.getById(id);
-  Object.assign(B, { hE: g('hero').end, dS: g('design').start, dE: g('design').end, kS: g('kol').start, kE: g('kol').end, yS: g('day').start, yE: g('day').end });
-  B.eE = B.yE + innerHeight * 0.65;
+  Object.assign(B, { hE: g('hero').end, dS: g('design').start, dE: g('design').end, kS: g('kol').start, kE: g('kol').end, yS: g('day').start, yE: g('day').end,
+    nS: g('dane').start, nE: g('dane').end, cS: g('kon').start, end: ScrollTrigger.maxScroll(window) });
   POSES = Object.fromEntries(Object.keys(P).map((k) => [k, P[k]()]));
   placeLoupes();
 }
@@ -566,8 +593,41 @@ const cA = new THREE.Color(), cB = new THREE.Color();
 const mixCol = (a, b, t) => cA.set(a).lerp(cB.set(b), t).getHexString();
 const dipAt = (t) => (t < 0.5 ? 1 - smooth((t - 0.05) / 0.35) : smooth((t - 0.6) / 0.35)); // zanika w połowie przenosin
 
+// ride: ujęcie przesunięte razem z sekcją o dy pikseli przewinięcia (w górę, gdy dy > 0)
+const ride = (p, dy) => ({ ...p, py: p.py + dy * 2 * halfH() / innerHeight });
+// Lądowanie piórka: punkt na górnej krawędzi „Halo” (w telefonie „Lumen”) w stopce. Piórko ma tam stałą szerokość
+// względem ekranu; środek piórka względem środka słuchawek (featherOff) liczy się raz, po zbudowaniu piórka.
+const landEl = $('#land');
+let featherOff = null;
+// featherAt: ujęcie, w którym środek piórka stoi w punkcie ekranu (x, y), a piórko ma szerokość w pikseli
+function featherAt(x, y, w) {
+  const W = innerWidth, H = innerHeight, s = w / W * 2 * halfW() / (FL * feather.scale.x);
+  return pose({ px: (x / W - 0.5) * 2 * halfW() - featherOff.x * s, py: (0.5 - y / H) * 2 * halfH() - featherOff.y * s, rx: KON_R[0], ry: KON_R[1], s, bob: 0 });
+}
+// miejsce lądowania: środek piórka nad górną krawędzią liter (piórko na nich leży), szerokość względem ekranu
+function landSpot() {
+  const r = landEl.getBoundingClientRect(), w = innerWidth * (!L.mobile ? 0.34 : innerWidth <= 560 ? 0.52 : 0.42);
+  return { x: r.left, y: r.top - featherOff.h * w, w };
+}
+const landPose = () => { const l = landSpot(); return featherAt(l.x, l.y, l.w); };
+// piórko, które właśnie powstało w miejscu modelu w Kontakcie (komputer: w lewej kolumnie)
+function laneSpot() {
+  const r = $('#kon-lane').getBoundingClientRect(), w = L.mobile ? Math.min(innerWidth * 0.5, 260) : r.width * 0.8;
+  return { x: Math.min(r.left + r.width / 2, innerWidth - w * 0.55), y: r.top + r.height / 2, w };
+}
+const lanePose = () => { const l = laneSpot(); return featherAt(l.x, l.y, l.w); };
+// pusty pas między dołem formularza Kontaktu a odnośnikami stopki: tędy piórko przechodzi w bok (komputer)
+const kformEl = $('#kform'), footTopEl = $('.foot-top');
+const band = () => { const a = kformEl.getBoundingClientRect().bottom, b = footTopEl.getBoundingClientRect().top; return { y: (a + b) / 2, h: b - a }; };
+function measureFeather() {
+  pivot.position.set(0, 0, 0); pivot.rotation.set(KON_R[0], KON_R[1], 0, 'YXZ'); pivot.scale.setScalar(1); pivot.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(fMesh), c = b.getCenter(new THREE.Vector3());
+  // h: połowa wysokości piórka względem jego szerokości (piórko leży na linii liter, więc środek jest nad nią)
+  featherOff = { x: c.x, y: c.y, h: (b.max.y - b.min.y) / (b.max.x - b.min.x) * 0.6 };
+}
+
 function scrollState(y, yr = y) {
-  const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0, col: 0, white: 1, spin: 1 };
+  const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0, col: 0, white: 1, spin: 1, e: 0, dane: 0, top: false, land: 0 };
   // wejście słuchawek: razem z pojawianiem się tytułu (od 0,6 Startu) do połowy pierwszej jednostki przypiętej Anatomii
   const ent = seg(y, B.hE * 0.6, B.dS + (B.dE - B.dS) / AN_U * 0.5);
   if (y < B.dS) {
@@ -609,20 +669,79 @@ function scrollState(y, yr = y) {
     // Położenie i krycie liczy prawdziwe przewinięcie (yr), więc przy szybkim przewijaniu model nie zostaje w miejscu.
     const t = seg(yr, B.kE, B.yS), ts = seg(y, B.kE, B.yS), u = innerHeight / (2 * halfH());
     const out = 1 - smooth(seg(t, 0.12, 0.42)), inn = smooth(seg(t, 0.62, 0.92));
-    S.pose = t < 0.5 ? { ...POSES.kol, py: POSES.kol.py + (yr - B.kE) / u } : { ...POSES.day, py: POSES.day.py - Math.max(0, B.yS - yr) / u };
+    S.pose = t < 0.5 ? { ...POSES.kol, py: POSES.kol.py + Math.max(0, yr - B.kE) / u } : { ...POSES.day, py: POSES.day.py - Math.max(0, B.yS - yr) / u };
     S.pose.ry += io(ts) * Math.PI;
     S.vis = t < 0.5 ? out : inn; S.spin = out;
     S.bg = mixCol('#ffffff', BG_DAY[0][1], t);
     S.col = 2; S.white = smooth(seg(ts, 0, 0.4));
   }
   else if (y <= B.yE) { const u = seg(y, B.yS, B.yE); S.pose = { ...POSES.day, ry: POSES.day.ry + Math.PI + u * Math.PI * 2 }; S.day = lerp(7, 23, smooth((u - 0.04) / 0.76)); }
-  else { const t = seg(y, B.yE, B.eE); S.pose = mixPose({ ...POSES.day, ry: POSES.day.ry + Math.PI * 3 }, { ...POSES.end, ry: POSES.end.ry + Math.PI * 3 }, t); S.bg = mixCol(BG_DAY[BG_DAY.length - 1][1], '#ffffff', t); }
+  else if (yr < B.nS || y < B.nS) {
+    // Użytkowanie → Dane („świt”): tło jaśnieje, model jedzie w górę razem z Użytkowaniem. Komputer: wyjeżdża z nim za ekran
+    // i wlatuje do Danych w ich przypiętej części, zanim pojawi się tekst. Tablet, telefon: gaśnie w połowie drogi
+    // i pojawia się już w swoim miejscu w Danych, wjeżdżając razem z nimi.
+    const t = seg(yr, B.yE, B.nS), dayEnd = { ...POSES.day, ry: POSES.day.ry + Math.PI };
+    S.bg = mixCol(BG_DAY[BG_DAY.length - 1][1], '#ffffff', smooth(seg(t, 0.1, 0.9)));
+    if (!L.mobile || t < 0.5) { S.pose = ride(dayEnd, Math.max(0, yr - B.yE)); if (L.mobile) S.vis = 1 - smooth(seg(t, 0.12, 0.42)); }
+    else { S.pose = ride(POSES.dane, -(B.nS - yr)); S.vis = smooth(seg(t, 0.62, 0.92)); }
+  }
+  else if (y <= B.nE && yr <= B.nE) {
+    // Dane (przypięte): przelot do lewej kolumny (komputer), rozłożenie na części, chwila postoju, złożenie
+    const p = seg(y, B.nS, B.nE), dayEnd = { ...POSES.day, ry: POSES.day.ry + Math.PI };
+    S.e = io(seg(p, 0.16, 0.56)) * (1 - io(seg(p, 0.82, 0.96)));
+    const at = { ...POSES.dane, ry: lerp(POSES.dane.ry, -0.35, S.e), rx: lerp(0.12, 0.14, S.e) };
+    const fly = L.mobile ? 1 : io(seg(seg(yr, B.nS, B.nE), 0, 0.14));
+    S.pose = fly < 1 ? mixPose(ride(dayEnd, innerHeight), at, fly) : at;
+    S.dane = p; S.bg = 'ffffff';
+  }
+  else if (yr < B.cS || y < B.cS) {
+    // Dane → Kontakt. Komputer: lewa kolumna jest miejscem modelu w obu sekcjach, więc model zostaje i tylko się zmniejsza,
+    // a prawa kolumna się wymienia. Tablet, telefon: model jedzie z Danymi, gaśnie i pojawia się obok tytułu Kontaktu.
+    const t = seg(yr, B.nE, B.cS), ts = seg(y, B.nE, B.cS);
+    if (!L.mobile) S.pose = mixPose(POSES.dane, POSES.kon, io(ts));
+    else if (t < 0.5) { S.pose = ride(POSES.dane, Math.max(0, yr - B.nE)); S.vis = 1 - smooth(seg(t, 0.12, 0.42)); }
+    else { S.pose = ride(POSES.kon, -(B.cS - yr)); S.vis = smooth(seg(t, 0.62, 0.92)); }
+    S.dane = 1; S.bg = 'ffffff';
+  }
+  else {
+    // Kontakt → stopka: słuchawki rozsypują się w piórko, które jedzie w górę razem z Kontaktem, a gdy wjeżdża stopka,
+    // odrywa się i z kołysaniem opada na napis „Lumen Halo”. Najpierw w bok, potem w dół, przez pusty środek stopki.
+    const t = seg(yr, B.cS, B.end), ts = seg(y, B.cS, B.end), T0 = 0.45;
+    S.dane = 1;
+    S.bg = mixCol('#ffffff', ANAT_BG, smooth(seg(t, 0.35, 0.8)));
+    if (!dust || !featherOff) { S.pose = ride(POSES.kon, Math.max(0, yr - B.cS)); S.vis = 1 - smooth(seg(t, 0.05, 0.3)); return S; }
+    S.wave = smooth(seg(ts, 0.03, 0.4));
+    // w trakcie rozsypywania model przechodzi w piórko o szerokości kolumny i jedzie z Kontaktem (lanePose liczy się z położenia sekcji)
+    if (t < T0) S.pose = mixPose(ride(POSES.kon, Math.max(0, yr - B.cS)), lanePose(), S.wave);
+    else {
+      // Komputer: w dół pustą lewą kolumną do pasa między formularzem a stopką, w bok wzdłuż pasa, na końcu na napis.
+      // Tablet, telefon: pas jest za wąski, więc piórko wyjeżdża z Kontaktem w górę, a potem wlatuje z prawej
+      // między odnośniki a napis. Przez cały czas lekko się kołysze.
+      const f = seg(t, T0, 1), l = laneSpot(), d = landSpot();
+      let x, yy, w;
+      if (!L.mobile) {
+        // w pasie piórko jest niższe od pasa (wysokość piórka to ok. 0,44 szerokości, z zapasem ok. 36 px nad i pod, bo piórko się kołysze)
+        const bd = band(), wb = clamp((bd.h - 72) / 0.44, 160, l.w), f1 = io(seg(f, 0, 0.3)), f2 = io(seg(f, 0.3, 0.72)), f3 = smooth(seg(f, 0.72, 1));
+        x = lerp(l.x, d.x, f2); yy = lerp(lerp(l.y, bd.y, f1), d.y, f3); w = lerp(lerp(l.w, wb, f1), d.w, f3);
+        S.top = f > 0.3;
+      } else {
+        const g = smooth(seg(f, 0.45, 1));
+        if (f < 0.45) { x = l.x; yy = l.y; w = l.w; }
+        else { x = lerp(innerWidth + d.w * 0.6, d.x, 1 - (1 - g) ** 2); yy = d.y; w = d.w; } // cały czas w pasie nad napisem
+        S.top = f >= 0.45;
+      }
+      const k = 1 - smooth(seg(f, 0.8, 1));
+      S.pose = featherAt(x + Math.sin(f * Math.PI * 3) * 0.04 * w * k, yy, w);
+      S.pose.rz = Math.sin(f * Math.PI * 3 + 0.6) * 0.18 * k;
+      S.land = smooth(seg(f, 0.88, 1));
+    }
+  }
   return S;
 }
 
 function buildTrack() {
   const tr = $('#d-track');
-  for (const h of [7, 9, 12, 15, 18, 21, 23]) { const s = document.createElement('span'); s.className = 'hr'; s.style.left = (h - 7) / 16 * 100 + '%'; s.textContent = h + ':00'; tr.appendChild(s); }
+  for (const h of [7, 9, 12, 15, 18, 21, 23]) { const s = document.createElement('span'); s.className = 'hr' + ([9, 15, 21].includes(h) ? ' minor' : ''); s.style.left = (h - 7) / 16 * 100 + '%'; s.textContent = h + ':00'; tr.appendChild(s); }
   BLOCKS.forEach(([a, b, n]) => { const d = document.createElement('div'); d.className = 'blk'; d.style.left = (a - 7) / 16 * 100 + '%'; d.style.width = (b - a) / 16 * 100 + '%'; d.innerHTML = `<i></i><span>${n}</span>`; tr.appendChild(d); });
 }
 buildTrack();
@@ -650,7 +769,20 @@ function setDay(h) {
 // ---------- Pętla ----------
 let lastBg = '', dayActive = false, lastHead = '', lastTime = 0, ySm = null;
 const lpState = { a: 0, v: 0 };
-const navLinks = $$('.menu a, .mmenu nav a'), NAV_SECT = ['#start', '#design', '#konfiguracja', '#uzytkowanie', '#dane']; let navOn = -1;
+const navLinks = $$('.menu a, .mmenu nav a'), NAV_SECT = ['#start', '#design', '#konfiguracja', '#uzytkowanie', '#dane', '#kontakt']; let navOn = -1;
+const footEl = $('#stopka'); let lastTop = false, lastLand = -1;
+// Dane: na komputerze tytuł pojawia się, gdy model już wleciał, a wiersze po kolei w rytm rozkładania; na końcu przypięcia gasną
+const daneHead = $$('.dane-head > *'), daneRows = $$('#spec > div');
+let lastDane = '';
+function setDane(p) {
+  const key = p.toFixed(3) + L.mobile;
+  if (key === lastDane) return;
+  lastDane = key;
+  const out = L.mobile ? 1 : 1 - smooth(seg(p, 0.82, 0.95));
+  const head = (L.mobile ? 1 : smooth(seg(p, 0.12, 0.2))) * out;
+  daneHead.forEach((el) => { el.style.opacity = head; el.style.transform = `translateY(${((1 - head) * 16).toFixed(1)}px)`; });
+  daneRows.forEach((el, i) => { const o = smooth(seg(p, 0.16 + i * 0.045, 0.22 + i * 0.045)) * out; el.style.opacity = o; el.style.transform = `translateY(${((1 - o) * 12).toFixed(1)}px)`; });
+}
 const spinEl = $('#spin'); let lastSpin = 1;
 const headKids = $$('.anat-head > *');
 function frame(time) {
@@ -664,6 +796,9 @@ function frame(time) {
     if (S.spin !== lastSpin) { spinEl.style.opacity = S.spin; lastSpin = S.spin; }
     const ent = setEntrance(S.ent);
     Object.assign(rig, S.pose); rig.wave = S.wave; rig.vis = S.vis;
+    explode(S.e); setDane(S.dane);
+    if (S.top !== lastTop) { canvas.style.zIndex = S.top ? 3 : ''; lastTop = S.top; } // lądujące piórko nad napisem w stopce
+    if (S.land !== lastLand) { footEl.style.setProperty('--land', S.land.toFixed(3)); lastLand = S.land; }
     rig.ry += ent.turn; rig.ent = ent.a;
     setLight(S.light, S.photo);
     // tytuł Anatomii pojawia się, gdy gaśnie zdjęcie, i stoi w miejscu, a sekcja dojeżdża pod niego
@@ -689,7 +824,7 @@ function frame(time) {
     const zone = y >= B.kS - innerHeight * 0.5 && y < B.kE + innerHeight * 0.6;
     if (zone !== barZone) { barZone = zone; showBar(); if (!zone) resetDrag(); }
     // menu: bieżąca sekcja, gdy jej góra minie 55% wysokości ekranu
-    const h = innerHeight, on = [0, B.dS, B.kS, B.yS, B.yE + h].filter((s) => y >= s - 0.55 * h).length - 1;
+    const h = innerHeight, on = [0, B.dS, B.kS, B.yS, B.nS, B.cS].filter((s) => y >= s - 0.55 * h).length - 1;
     if (on !== navOn) { navLinks.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === NAV_SECT[on])); navOn = on; }
   }
   const bob = reduce ? 0 : Math.sin(t * 0.9) * 0.05 * rig.bob;
@@ -714,9 +849,7 @@ function frame(time) {
     const k = reduce ? 0 : smooth((rig.wave - 0.95) / 0.05);
     fMesh.rotation.set(Math.sin(t * 0.6) * 0.05 * k, Math.sin(t * 0.45) * 0.08 * k, Math.sin(t * 0.7 + 1) * 0.04 * k);
     fMesh.position.y = Math.sin(t * 0.8) * 0.09 * k;
-    fShadow.material.opacity = smooth((rig.wave - 0.6) / 0.4) * (1 - fMesh.position.y * 1.5);
-    fShadow.scale.x = 1 - fMesh.position.y * 0.8;
-    fShadow.position.y = -2.1 - bob / rig.s; // cień stoi w miejscu, gdy słuchawki i piórko lekko się bujają
+    fShadow.visible = false;
     pivot.updateMatrixWorld(true);
     clipWorld.copy(clipLocal).applyMatrix4(pivot.matrixWorld);
   }
@@ -743,9 +876,12 @@ function timelines() {
   ScrollTrigger.create({ id: 'kol', trigger: '#konfiguracja', start: 'top top', end: '+=150%', pin: true });
 
   // 4. Użytkowanie: godzina biegnie od 7:00 do 23:00 (scrollState), na końcu karty z faktami
-  gsap.timeline({ scrollTrigger: { id: 'day', trigger: '#uzytkowanie', start: 'top top', end: '+=220%', pin: true, scrub: SCRUB } })
-    .to('.fact', { opacity: 1, y: 0, stagger: 0.04, duration: 0.1 }, 0.82)
-    .to({}, { duration: 0.1 }, 0.9);
+  ScrollTrigger.create({ id: 'day', trigger: '#uzytkowanie', start: 'top top', end: '+=220%', pin: true });
+
+  // 5. Dane techniczne: przypięte; model wlatuje (komputer), rozkłada się, wiersze pojawiają się po kolei (scrollState, setDane)
+  ScrollTrigger.create({ id: 'dane', trigger: '#dane', start: 'top top', end: '+=180%', pin: true });
+  // 6. Kontakt i 7. stopka: bez przypięcia; od góry Kontaktu do końca strony słuchawki zamieniają się w piórko, które spada na napis
+  ScrollTrigger.create({ id: 'kon', trigger: '#kontakt', start: 'top top', end: 'bottom top' });
 
   ScrollTrigger.addEventListener('refresh', measure);
 }
@@ -869,7 +1005,25 @@ timelines();
 addEventListener('resize', () => { layout(); });
 gsap.ticker.add((time) => frame(time));
 gsap.to(appear, { v: 1, duration: reduce ? 0 : 1.2, ease: 'power2.out', delay: 0.1 });
-// Piórko i drobinki (buildDust) czekają na finał w sekcji Kontakt (etap C): sekcja Lekkość wypadła, więc na razie nie są budowane.
+// piórko i drobinki do finału liczą się chwilę po starcie, w wolnych chwilach, żeby nie opóźniać wejścia na stronę
+setTimeout(() => idle().then(buildDust).then(measureFeather), 1500);
+
+// ---------- Dane (telefon): wszystkie wiersze w arkuszu od dołu ----------
+{
+  const sheet = $('#sheet'), all = $('#spec-all');
+  $$('#spec > div').forEach((d) => { const c = d.cloneNode(true); c.style.cssText = ''; all.appendChild(c); });
+  $('#spec-more').addEventListener('click', () => { all.querySelectorAll('div').forEach((d) => { d.style.cssText = ''; }); sheet.showModal(); if (lenis) lenis.stop(); });
+  const close = () => sheet.close();
+  $('#sheet-close').addEventListener('click', close);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) close(); });
+  sheet.addEventListener('close', () => { if (lenis) lenis.start(); });
+}
+// ---------- Kontakt: temat i wysyłka (prototyp: nic nie wychodzi ze strony) ----------
+{
+  const seg = $$('.seg button');
+  seg.forEach((b) => b.addEventListener('click', () => seg.forEach((o) => o.setAttribute('aria-checked', String(o === b)))));
+  $('#kform').addEventListener('submit', (e) => { e.preventDefault(); $('#sent').hidden = false; });
+}
 
 // menu chowa się przy przewijaniu w dół i wraca przy przewijaniu w górę (na samej górze strony jest zawsze widoczne)
 {
