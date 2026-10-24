@@ -1,60 +1,39 @@
 // Strona Lumen Halo: jedno płótno 3D przypięte za treścią. Słuchawki przechodzą przez sekcje według stanu „rig”
-// (położenie, obrót, skala, kamera, światło okna, przemiana w piórko), który przewijanie animuje przez GSAP ScrollTrigger.
-import * as THREE from 'three';
-import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
-import { PALETTES, studioEnv, buildHalo, centerHalo } from './halo-model.js';
+// (położenie, obrót, skala, przemiana w piórko), który jest jedną funkcją miejsca na stronie (scrollState).
+// Ten plik to rdzeń: przypięcia sekcji, teksty, kolory tła, menu i konfigurator, bez three.js. Część 3D (lumen-3d.js)
+// wczytuje się dopiero po starcie strony, bo na pierwszym ekranie jest samo zdjęcie: strona szybciej się pokazuje
+// i nie zacina się przy pierwszym przewinięciu.
+import { PALETTES } from './palettes.js';
 
 gsap.registerPlugin(ScrollTrigger);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
-const { lerp, clamp, degToRad } = THREE.MathUtils;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v)), lerp = (a, b, t) => a + (b - a) * t, degToRad = (d) => d * Math.PI / 180;
 const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
-const SCRUB = reduce ? true : 1;
-
-// ---------- Scena ----------
+const io = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2); // power2.inOut
+const seg = (y, a, b) => clamp((y - a) / (b - a), 0, 1);
+// teksty idą dokładnie za przewijaniem (wygładza je Lenis), więc nie rozjeżdżają się z modelem przy szybkim przewijaniu
+const SCRUB = true;
 const canvas = $('#stage'), backdrop = $('.backdrop');
-let renderer;
-try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-} catch (e) {
-  document.documentElement.classList.add('no-webgl');
-  throw e;
-}
-renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.05;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.VSMShadowMap;
-renderer.localClippingEnabled = true;
 
-const scene = new THREE.Scene();
-scene.environment = studioEnv(renderer);
-const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
-
-const sun = new THREE.DirectionalLight(0xfffaf2, 1.4);
-sun.position.set(1.5, 9, 3.5);
-sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.radius = 28;
-sun.shadow.blurSamples = 32;
-Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 24 });
-sun.shadow.bias = -0.0005;
-sun.shadow.normalBias = 0.02;
-const hemi = new THREE.HemisphereLight(0xffffff, 0xd8d4cc, 0.2);
-scene.add(sun, hemi);
-
-const MODEL_H = 3.65;
-const { halo, M, anchors } = buildHalo(renderer);
-centerHalo(halo, MODEL_H);
-const pivot = new THREE.Group();
-pivot.add(halo);
-scene.add(pivot);
+// ---------- Kolory (interpolacja w przestrzeni liniowej, jak wcześniej w three.js) ----------
+const toLin = (v) => ((v /= 255) <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const toSrgb = (v) => 255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
+const lin = (h) => { const n = parseInt(h.replace('#', ''), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(toLin); };
+const mixCol = (a, b, t) => { const A = lin(a), B = lin(b); return A.map((v, i) => Math.round(clamp(toSrgb(lerp(v, B[i], t)), 0, 255)).toString(16).padStart(2, '0')).join(''); };
+const luma = (h) => { const [r, g, b] = lin(h); return r * 0.3 + g * 0.59 + b * 0.11; };
+const mixStops = (stops, h) => { // interpolacja kolorów wg godziny
+  let i = 0; while (i < stops.length - 2 && h > stops[i + 1][0]) i++;
+  const [h0, a] = stops[i], [h1, b] = stops[i + 1];
+  return mixCol(a, b, clamp((h - h0) / (h1 - h0), 0, 1));
+};
 
 // ---------- Układ i ujęcia ----------
 // Ujęcia są funkcjami, bo zależą od proporcji ekranu (telefon: model nad tekstem, mniejszy).
-const L = { mobile: false, compact: false, dist: 13 };
+const MODEL_H = 3.65, FL = 5; // wysokość modelu i długość piórka w jednostkach sceny
+const L = { mobile: false, compact: false, dist: 13, aspect: 1 };
 const halfH = () => L.dist * Math.tan(degToRad(15));
-const halfW = () => halfH() * camera.aspect;
+const halfW = () => halfH() * L.aspect;
 const BASE = { px: 0, py: 0, pz: 0, rx: 0.08, ry: -0.9, rz: 0, s: 0.9, camY: 0.6, camTY: 0, bob: 1, sway: 0, alpha: 1 };
 const pose = (o) => ({ ...BASE, ...o });
 // Telefon: model mieści się w wolnym pasie między tekstami. Pas jest liczony z położenia elementów w sekcji
@@ -92,7 +71,7 @@ const P = {
   day: () => {
     // komputer: prawa część ekranu nad osią czasu; tablet i telefon: wolne miejsce między tytułem a zegarem
     const h = rel('.day .h2', '#uzytkowanie'), c = rel('.clock b', '#uzytkowanie'), t = rel('.track', '#uzytkowanie'), pad = parseFloat(getComputedStyle($('.day')).paddingLeft);
-    const r = L.mobile ? { left: pad, right: innerWidth - pad, top: h.bottom + 16, bottom: c.top - 72 } /* zapas: wieczorem opis przy zegarze ma dwie linie */
+    const r = L.mobile ? { left: pad, right: innerWidth - pad, top: h.bottom + 16, bottom: c.top - 72 } /* zapas na opis (na telefonie stoi nad zegarem, wieczorem w dwóch liniach) */
       : { left: innerWidth * 0.55, right: innerWidth - pad, top: 76, bottom: t.top - 24 }; // tytuł i zegar zajmują lewą część (ok. 40% szerokości)
     const f = fitRect(r, 1.1, 1, 0.85);
     return pose({ px: f.px, py: f.py, rx: 0.14, s: f.s });
@@ -103,20 +82,20 @@ const P = {
   kon: () => { const f = fitRect(rel('#kon-lane', '#kontakt'), L.mobile ? 2.4 : 1.2, 1.05, 0.9); return pose({ px: f.px, py: f.py, rx: KON_R[0], ry: KON_R[1], s: f.s }); },
 };
 const KEYS = Object.keys(BASE);
-const rig = { ...P.an(), wave: 0, vis: 1, ent: 0 }; // vis: zanikanie przy przenosinach modelu między sekcjami
+const rig = { ...BASE, wave: 0, vis: 1, ent: 0 }; // vis: zanikanie przy przenosinach modelu między sekcjami
 const drag = { x: 0, y: 0 };
-const appear = { v: 0 };
+const appear = { v: 0 }; // płótno pojawia się łagodnie, gdy 3D jest gotowe
 
+let G = null; // część 3D (lumen-3d.js), gdy się wczyta
 function layout() {
   const w = innerWidth, h = innerHeight, a = w / h;
   L.mobile = w <= 560 || a < 5 / 6; // ten sam próg co w CSS
   L.compact = L.mobile || w < 1100;  // tablet i telefon: Anatomia bez zbliżeń, opis z paskiem stanu w rogu
   L.dist = a < 1.15 ? 13 * 1.15 / Math.max(a, 0.46) * (L.mobile ? 0.82 : 1) : 13;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, L.mobile ? 1.5 : 1.75));
-  renderer.setSize(w, h, false);
-  camera.aspect = a;
-  camera.updateProjectionMatrix();
+  L.aspect = a;
+  document.documentElement.classList.toggle('compact', L.compact);
   lastLight = '';
+  if (G) G.resize();
 }
 // ---------- Start i Anatomia: zdjęcie gaśnie, zostaje smuga światła, a w niej pojawiają się słuchawki ----------
 // Start to zdjęcie (warstwa .photo). Przy przewijaniu najpierw gaśnie tekst, potem zdjęcie, a pod koniec pojawia się
@@ -135,501 +114,74 @@ function setLight(a, photo) {
 }
 
 // e: postęp wejścia 0–1. Słuchawki przechodzą z rozmycia do ostrości i lekko dokręcają do pierwszego ujęcia.
+let lastBlur = '';
 function setEntrance(e) {
-  canvas.style.filter = e < 1 ? `blur(${(28 * (1 - smooth(e)) ** 1.5).toFixed(2)}px)` : '';
+  const blur = e < 1 ? `blur(${(28 * (1 - smooth(e)) ** 1.5).toFixed(1)}px)` : '';
+  if (blur !== lastBlur) { canvas.style.filter = blur; lastBlur = blur; }
   return { a: smooth(seg(e, 0, 0.6)), turn: -0.35 * (1 - io(e)) }; // start jak dotąd (ry −0,8), potem obrót do środka, do pierwszej cechy
 }
 
-// ---------- Lekkość: słuchawki rozsypują się w drobinki, które składają się w piórko ----------
-// Piórko to tekstura rysowana na płótnie 2D (stosina, chorągiewki, puch u nasady) na wygiętej powierzchni:
-// łuk z obu końców, szczyt po prawej podwinięty, puch po lewej. Drobinki są losowane z powierzchni modelu
-// i z tekstury piórka (tam, gdzie jest gęsta), więc lądują dokładnie na nim. Płaszczyzna tnąca „zjada” bryłę,
-// drobinki lecą w kolejności od nasady do szczytu, a za nimi z tekstury wyłania się prawdziwe piórko.
-const clipLocal = new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e3), clipWorld = new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e3);
-Object.values(M).forEach((m) => { m.clippingPlanes = [clipWorld]; });
-const RUN = 1.6; // tempo fali: drobinka rusza, gdy uW · RUN minie jej miejsce na piórku (0 nasada, 1 szczyt)
-let dust = null, feather = null, fMesh = null, fShadow = null, cutX = null, cutK = null;
-const fRev = { value: 0 };
-
-function featherTexture() {
-  const W = 2048, H = 768, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d');
-  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const yc = H / 2, xb = 60, xt = W - 170, // za szczytem stosiny zostaje miejsce na końce promieni
-    X = (u) => xb + u * (xt - xb);
-  g.lineCap = 'round';
-  // puch u nasady: długie, miękkie, kręte promienie z drobnymi odgałęzieniami. Rysowany na osobnej warstwie i rozmyty
-  // raz w całości (filtr przy każdej kresce zajmował kilkanaście sekund i zamrażał stronę po wczytaniu)
-  const down = document.createElement('canvas'); down.width = W; down.height = H;
-  { const g = down.getContext('2d'); g.lineCap = 'round';
-  for (let i = 0; i < 1500; i++) {
-    const u = 0.05 + 0.55 * Math.pow(rnd(), 0.85), s = rnd() < 0.5 ? -1 : 1;
-    const len = H * (0.22 + 0.32 * rnd()) * (1 - Math.abs(u - 0.33) * 1.2);
-    let a = s * (0.75 + 0.75 * rnd()), x = X(u), y = yc;
-    g.strokeStyle = `rgba(255,255,255,${0.42 + 0.28 * rnd()})`; g.lineWidth = 1.3;
-    g.beginPath(); g.moveTo(x, y);
-    const pts = [];
-    for (let k = 0; k < 16; k++) {
-      a += (rnd() - 0.5) * 0.5 - s * 0.03; // promień skręca w stronę szczytu i faluje
-      x += Math.cos(a * 0.9) * len / 16 + len / 60; y += Math.sin(a) * len / 16;
-      g.lineTo(x, y); pts.push([x, y, a]);
-    }
-    g.stroke();
-    g.strokeStyle = i % 3 ? 'rgba(255,255,255,0.32)' : 'rgba(150,150,160,0.14)'; g.lineWidth = 0.9; // co trzeci promień z szarymi odgałęzieniami: puch ma cień i objętość
-    g.beginPath();
-    for (const [px, py, pa] of pts) for (const d of [-1, 1]) {
-      const b = pa + d * (0.9 + 0.5 * rnd()), l = 5 + 10 * rnd();
-      g.moveTo(px, py); g.lineTo(px + Math.cos(b) * l, py + Math.sin(b) * l);
-    }
-    g.stroke();
-  }
-  }
-  g.filter = 'blur(0.6px)';
-  g.drawImage(down, 0, 0);
-  g.filter = 'none';
-  // chorągiewki: gęste promienie skośne ku szczytowi, lekko wygięte, w pękach z rozszczepieniami.
-  // Dolna (wewnętrzna) jest szersza, szczyt zaokrąglony.
-  const env = (u, s) => {
-    if (u < 0.42) return 0;
-    const p = u < 0.66 ? 1 - ((0.66 - u) / 0.26) ** 2 * 0.7 : Math.max(0, 1 - ((u - 0.66) / 0.335) ** 2) ** 0.75 * (1 - 0.3 * smooth((u - 0.8) / 0.2)); // szczyt węższy i zaokrąglony
-    return H * 0.44 * (s > 0 ? 1 : lerp(0.8, 1, smooth((u - 0.7) / 0.3))) * Math.max(0, p);
-  };
-  for (const s of [-1, 1]) {
-    let clump = 0, jit = 0, cut = 1;
-    for (let u = 0.42; u < 0.995; u += 1 / 1100) {
-      if (clump-- <= 0) { clump = 6 + rnd() * 22 | 0; jit = (rnd() - 0.5) * 0.04; cut = 1 - 0.05 * rnd(); if (u < 0.88 && rnd() < 0.12) u += 0.002 + 0.003 * rnd(); }
-      const E = env(u, s) * cut; if (E < 2) continue;
-      const al = lerp(0.78 - 0.32 * u, 0.2, smooth((u - 0.86) / 0.14)) + jit, // przy szczycie promienie biegną prawie wzdłuż stosiny i zbiegają się w szpic
-        x0 = X(u), fw = E / Math.tan(al), q = Math.min(1, (xt + 130 - x0) / fw), // promienie przy szczycie skracają się i schodzą do osi
-        x1 = x0 + fw * q, y1 = yc + s * E * q;
-      const gr = g.createLinearGradient(x0, yc, x1, y1);
-      gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.75, 'rgba(255,255,255,0.36)'); gr.addColorStop(1, 'rgba(255,255,255,0.06)');
-      g.strokeStyle = gr; g.lineWidth = 1.4;
-      g.beginPath(); g.moveTo(x0, yc); g.quadraticCurveTo(x0 + (x1 - x0) * 0.25, yc + s * E * 0.72, x1, y1); g.stroke();
-      if (rnd() < 0.3) { // luźne końce promieni wystają poza brzeg, więc brzeg chorągiewki jest miękki
-        const l = 6 + 22 * rnd() * (1 - u), dx = Math.cos(al) * l, dy = s * Math.sin(al) * l;
-        g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 0.9;
-        g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 + dx, y1 + dy); g.stroke();
-      }
-      if (rnd() < 0.55) { // cieńsze, szare promienie dają rysunek splotu widoczny na jasnym piórku
-        g.strokeStyle = 'rgba(140,140,150,0.16)'; g.lineWidth = 0.7;
-        g.beginPath(); g.moveTo(x0, yc); g.quadraticCurveTo(x0 + (x1 - x0) * 0.25, yc + s * E * 0.72, x1, y1); g.stroke();
-      }
-    }
-  }
-  // stosina: zwęża się ku szczytowi; u nasady gołe, półprzezroczyste dutki
-  const sw = (u) => 9 * (1 - u) + 1.4;
-  g.fillStyle = 'rgba(252,252,253,0.95)';
-  g.beginPath();
-  for (let u = 0; u <= 1; u += 0.01) g.lineTo(X(u), yc - sw(u) / 2);
-  for (let u = 1; u >= 0; u -= 0.01) g.lineTo(X(u), yc + sw(u) / 2);
-  g.fill();
-  g.strokeStyle = 'rgba(140,140,150,0.45)'; g.lineWidth = 1.5;
-  g.beginPath(); g.moveTo(X(0.08), yc + 1); g.lineTo(X(0.97), yc + 0.5); g.stroke();
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  return { t, data: g.getImageData(0, 0, W, H).data, W, H };
-}
-
-// Kształt piórka w jego układzie (oś x w prawo, y w górę, z do kamery). u: wzdłuż (0 nasada po lewej, 1 szczyt po prawej),
-// v: w poprzek (0,5 = stosina). Stosina idzie łukiem, oba końce w górę, a szczyt mocniej; chorągiewka jest pochylona do kamery
-// jak u piórka oglądanego lekko z góry i obraca się ku szczytowi, który zwija się przodem do widza.
-const FL = 5, FWD = FL * 768 / 2048;
-const shaftAt = (u) => new THREE.Vector3((u - 0.5) * FL, 0.42 * (2 * u - 1) ** 2 + 0.45 * Math.max(0, u - 0.7) ** 2 / 0.09 - 0.25, -0.35 * (2 * u - 1) ** 2);
-function featherPoint(u, v, out = new THREE.Vector3()) {
-  const C = shaftAt(u), T = shaftAt(Math.min(1, u + 0.002)).sub(shaftAt(Math.max(0, u - 0.002))).normalize();
-  const th = lerp(0.62, 0.12, smooth((u - 0.4) / 0.6));
-  const D = new THREE.Vector3(-T.y, T.x, 0).normalize().multiplyScalar(Math.cos(th)).add(new THREE.Vector3(0, 0, Math.sin(th)));
-  D.addScaledVector(T, -D.dot(T)).normalize();
-  const N = new THREE.Vector3().crossVectors(T, D), w = (v - 0.5) * FWD;
-  return out.copy(C).addScaledVector(D, w).addScaledVector(N, -0.32 * w * w * (1 - 0.7 * smooth((u - 0.75) / 0.25))); // przy szczycie chorągiewka się prostuje
-}
-
-function buildFeather() {
-  const ft = featherTexture();
-  const geo = new THREE.PlaneGeometry(1, 1, 200, 60), p = geo.attributes.position, uv = geo.attributes.uv, v = new THREE.Vector3();
-  for (let i = 0; i < p.count; i++) { featherPoint(uv.getX(i), uv.getY(i), v); p.setXYZ(i, v.x, v.y, v.z); }
-  geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ map: ft.t, transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 1, emissive: '#ffffff', emissiveMap: ft.t, emissiveIntensity: 0.12 });
-  // piórko wyłania się od nasady do szczytu, w tym samym tempie, w jakim gasną drobinki
-  mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uRev = fRev;
-    sh.fragmentShader = 'uniform float uRev;\n' + sh.fragmentShader.replace('#include <alphamap_fragment>', '#include <alphamap_fragment>\n  diffuseColor.a *= smoothstep(0.3, 0.55, uRev - vMapUv.x);');
-  };
-  fMesh = new THREE.Mesh(geo, mat);
-  fMesh.renderOrder = 2;
-  // miękki cień pod piórkiem: unosi się w powietrzu, więc cień jest daleko i rozmyty
-  const sc = document.createElement('canvas'); sc.width = 256; sc.height = 64;
-  const sg = sc.getContext('2d'), rg = sg.createRadialGradient(128, 32, 0, 128, 32, 128);
-  rg.addColorStop(0, 'rgba(0,0,0,0.2)'); rg.addColorStop(0.45, 'rgba(0,0,0,0.08)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
-  sg.setTransform(1, 0, 0, 0.25, 0, 24); sg.fillStyle = rg; sg.fillRect(0, -96, 256, 256);
-  fShadow = new THREE.Mesh(new THREE.PlaneGeometry(FL * 0.62, FL * 0.13), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, toneMapped: false, opacity: 0 }));
-  fShadow.position.set(0.2, -2.1, -0.6);
-  feather = new THREE.Group();
-  feather.add(fMesh, fShadow);
-  feather.visible = false;
-  // układ piórka jest zgodny z kamerą: obrót znosi obrót słuchawek w ujęciu Lekkość
-  const lp = P.lek();
-  feather.quaternion.setFromEuler(new THREE.Euler(lp.rx, lp.ry, lp.rz, 'YXZ')).invert();
-  feather.position.copy(L.mobile ? new THREE.Vector3(0, 0.15, 0.4) : new THREE.Vector3(0.25, 0.35, 0.4)).applyQuaternion(feather.quaternion);
-  feather.scale.setScalar(L.mobile ? 1.35 : 1); // na telefonie słuchawki są małe, a piórko ma wypełnić szerokość ekranu
-  feather.updateMatrix();
-  pivot.add(feather);
-  return ft;
-}
-
-// Przygotowanie trwa ok. 0,6 s, więc jest rozbite na trzy kawałki w wolnych chwilach przeglądarki, żeby nie zacinać przewijania
-const idle = () => new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(() => r(), { timeout: 1500 }) : setTimeout(r, 60)));
-async function buildDust() {
-  const ft = buildFeather();
-  await idle();
-  const N = L.mobile ? 28000 : 42000;
-  pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); pivot.scale.setScalar(1); pivot.updateMatrixWorld(true);
-  explode(0); lastE = -1; // drobinki losowane z modelu złożonego
-  const meshes = []; halo.traverse((o) => { if (o.isMesh) meshes.push(o); });
-  const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
-  const areas = meshes.map((m) => {
-    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, p = g.attributes.position; let a = 0;
-    for (let i = 0; i < p.count; i += 3) { A.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld); B.fromBufferAttribute(p, i + 1).applyMatrix4(m.matrixWorld); C.fromBufferAttribute(p, i + 2).applyMatrix4(m.matrixWorld); a += B.sub(A).cross(C.sub(A)).length() / 2; }
-    return a;
-  });
-  const total = areas.reduce((s, a) => s + a, 0), hp = [], v = new THREE.Vector3();
-  meshes.forEach((m, k) => { const s = new MeshSurfaceSampler(m).build(), n = Math.round(N * areas[k] / total); for (let i = 0; i < n; i++) { s.sample(v); hp.push(v.clone().applyMatrix4(m.matrixWorld)); } });
-  await idle();
-  // cele na piórku: punkty tekstury losowane proporcjonalnie do krycia, przeniesione na wygiętą powierzchnię
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const fe = [];
-  while (fe.length < hp.length) {
-    const x = rnd() * ft.W | 0, y = rnd() * ft.H | 0;
-    if (rnd() * 255 > ft.data[(y * ft.W + x) * 4 + 3]) continue;
-    const u = (x + 0.5) / ft.W;
-    fe.push({ u, p: featherPoint(u, 1 - (y + 0.5) / ft.H).applyMatrix4(feather.matrix) });
-  }
-  // pary: kolejność rozsypywania słuchawek (wzdłuż x) = kolejność składania piórka (od nasady do szczytu)
-  hp.sort((a, b) => a.x - b.x); fe.sort((a, b) => a.u - b.u);
-  const n = hp.length, start = new Float32Array(n * 3), end = new Float32Array(n * 3), k = new Float32Array(n), r3 = new Float32Array(n * 3);
-  cutX = new Float32Array(n); cutK = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    hp[i].toArray(start, i * 3); fe[i].p.toArray(end, i * 3);
-    k[i] = cutK[i] = fe[i].u; cutX[i] = hp[i].x;
-    r3[i * 3] = rnd() * 2 - 1; r3[i * 3 + 1] = rnd() * 2 - 1; r3[i * 3 + 2] = rnd() * 2 - 1;
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(start, 3));
-  g.setAttribute('aEnd', new THREE.BufferAttribute(end, 3));
-  g.setAttribute('aK', new THREE.BufferAttribute(k, 1));
-  g.setAttribute('aRnd', new THREE.BufferAttribute(r3, 3));
-  const mat = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false,
-    uniforms: { uW: { value: 0 }, uTime: { value: 0 }, uSize: { value: 15 }, uPR: { value: renderer.getPixelRatio() } },
-    vertexShader: `
-      uniform float uW, uTime, uSize, uPR;
-      attribute vec3 aEnd, aRnd; attribute float aK;
-      varying float vA; varying vec3 vC;
-      void main() {
-        float d = uW * ${RUN.toFixed(2)} - aK;      // ile czasu minęło od przejścia płaszczyzny
-        float e = smoothstep(0.0, 0.35, d);
-        float s = sin(3.14159 * e);
-        vec3 p = mix(position, aEnd, e) + aRnd * 0.26 * s + vec3(0.0, 0.32 * s, 0.0);
-        vec4 mv = modelViewMatrix * vec4(p, 1.0);
-        gl_Position = projectionMatrix * mv;
-        gl_PointSize = uSize * uPR / -mv.z;
-        vA = step(0.0, d) * (1.0 - smoothstep(0.32, 0.6, d)); // po wylądowaniu drobinka gaśnie, a w jej miejscu jest już piórko
-        vC = aRnd.x > 0.1 ? vec3(1.0) : vec3(0.6, 0.6, 0.64);  // większość białych, część szarych, żeby było je widać na jasnym tle
-      }`,
-    fragmentShader: `
-      varying float vA; varying vec3 vC;
-      void main() {
-        vec2 c = gl_PointCoord - 0.5;
-        float a = vA * 0.6 * (1.0 - smoothstep(0.12, 0.25, dot(c, c)));
-        if (a < 0.01) discard;
-        gl_FragColor = vec4(vC, a);
-      }`,
-  });
-  dust = new THREE.Points(g, mat);
-  dust.frustumCulled = false;
-  dust.visible = false;
-  pivot.add(dust);
-}
-// położenie płaszczyzny tnącej: tuż za ostatnią drobinką, która już ruszyła (kolejność drobinek jest posortowana)
-function cutAt(front) {
-  let lo = 0, hi = cutK.length;
-  while (lo < hi) { const m = (lo + hi) >> 1; if (cutK[m] < front) lo = m + 1; else hi = m; }
-  return lo === 0 ? -1e3 : lo >= cutX.length ? 1e3 : cutX[lo];
-}
-
-// ---------- Dane techniczne: słuchawki rozkładają się na części ----------
-// Pałąk z ramionami w górę, muszle na boki i w dół, w każdej muszli front i pierścień na zewnątrz, poduszka do środka
-// (te same przesunięcia co w renderach do Figmy). Po rozłożeniu widać tył części, więc materiały rysują obie strony.
-Object.values(M).forEach((m) => { m.side = THREE.DoubleSide; });
-const tiltsE = halo.children.filter((c) => c.isGroup), bandE = halo.children.find((c) => c.isMesh);
-const basePos = new Map(); halo.traverse((o) => basePos.set(o, o.position.clone()));
-let lastE = -1;
-function explode(e) {
-  if (Math.abs(e - lastE) < 1e-4) return;
-  lastE = e;
-  basePos.forEach((p, o) => o.position.copy(p));
-  bandE.position.y += 0.55 * e;
-  tiltsE.forEach((t) => {
-    const side = Math.sign(t.position.x), [cup, stem, pin, sleeve] = t.children;
-    t.position.x += side * 0.55 * e; t.position.y -= 0.25 * e;
-    for (const p of [stem, pin, sleeve]) p.position.y += 0.55 * e; // ramię zostaje przy pałąku
-    const [face, lip, ring, cushion, driver] = cup.children;         // oś +z muszli = na zewnątrz
-    face.position.z += 0.7 * e; lip.position.z += 0.7 * e; ring.position.z += 0.32 * e;
-    cushion.position.z -= 0.45 * e; driver.position.z += 0.1 * e;
-  });
-}
-
-// ---------- Anatomia: zbliżenia detali (lupa) ----------
-// Cechy pojawiają się pojedynczo: okrągłe zbliżenie stoi tuż obok modelu, po tej stronie, po której jest opisywana
-// część, z cienką linią do punktu i podpisem pod spodem. Gdy jedna cecha prawie zgaśnie, zaczyna pojawiać się następna,
-// a model w tym czasie dokręca się dalej. Zbliżenie to osobny widok kamery z bliska na model (ten sam model i światło),
-// renderowany do tekstury i rysowany w kole na tym samym płótnie. Cel i kierunek kamery są w układzie słuchawek
-// (x: prawa muszla, y: góra, z: przód), więc zbliżenie obraca się razem z modelem.
-const rim = new THREE.Object3D();
-rim.position.set(0.21, -0.42, 0.72); // brzeg ceramicznego frontu z przodu: ceramika, polerowana fazka i bok pierścienia
-anchors.face.parent.add(rim);
-const bandSide = new THREE.Object3D();
-bandSide.position.copy(anchors.band.position).add(new THREE.Vector3(0.85, -0.6, 0)); // prawy bok łuku pałąka: zewnętrzna strona dzianiny
-anchors.band.parent.add(bandSide);
-const armL = new THREE.Object3D(); // przegub nad lewą muszlą: widać go po obrocie w drugą stronę
-armL.position.set(-anchors.arm.position.x, anchors.arm.position.y, anchors.arm.position.z);
-anchors.foam.parent.add(armL);
-// kolejność cech jak w HTML: poduszki, pierścień, ceramika, pałąk, ramię
-const LP = [
-  { at: anchors.foam, dir: [0.45, -0.05, 0.89], span: 0.85 }, // poduszki: lewa od strony ucha, przez szczelinę między muszlami
-  { at: anchors.ring, dir: [0.75, 0.05, 0.66], span: 0.7 },   // pierścień z aluminium
-  { at: rim, dir: [0.62, -0.18, 0.76], span: 0.55 },         // ceramiczna muszla: pod kątem, żeby było widać grubość
-  { at: bandSide, dir: [0.55, 0.4, 0.73], span: 0.6 },       // pałąk z dzianiny: ukośnie na zewnętrzną stronę łuku, widać splot i przeszycie
-  { at: armL, dir: [-0.6, 0.15, 0.8], span: 0.75 },          // ruchome ramię lewej muszli
-];
-const lpEls = $$('.lp'), linesSvg = $('#lines');
-const NS = 'http://www.w3.org/2000/svg';
-LP.forEach((l, i) => {
-  l.el = lpEls[i];
-  l.line = document.createElementNS(NS, 'path'); l.line.setAttribute('fill', 'none'); l.line.setAttribute('stroke', '#1d1d1f'); l.line.setAttribute('stroke-width', '1');
-  l.pulse = document.createElementNS(NS, 'circle'); l.pulse.setAttribute('r', '13'); l.pulse.setAttribute('fill', 'rgba(255,255,255,.4)'); l.pulse.setAttribute('stroke', '#fff');
-  l.dot = document.createElementNS(NS, 'circle'); l.dot.setAttribute('r', '6'); l.dot.setAttribute('fill', '#fff'); l.dot.setAttribute('stroke', '#1d1d1f'); l.dot.setAttribute('stroke-width', '1.5');
-  l.line.style.opacity = l.pulse.style.opacity = l.dot.style.opacity = 0;
-  linesSvg.append(l.line, l.pulse, l.dot);
-  l.rt = new THREE.WebGLRenderTarget(256, 256, { type: THREE.HalfFloatType, samples: 4 });
-  l.mat = new THREE.ShaderMaterial({
-    transparent: true, depthTest: false, depthWrite: false,
-    uniforms: { map: { value: l.rt.texture }, uA: { value: 0 }, uPx: { value: 132 }, uBg: { value: new THREE.Color('#efeeeb').convertLinearToSRGB() } },
-    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `
-      uniform sampler2D map; uniform float uA, uPx; uniform vec3 uBg; varying vec2 vUv;
-      void main() {
-        const float M = 1.35;                  // połowa boku kwadratu / promień koła (zapas na cień)
-        vec2 p = (vUv * 2.0 - 1.0) * M;
-        float q = length(p), px = 2.0 / uPx;   // q = 1 na krawędzi koła, px = jeden piksel w tych jednostkach
-        vec4 img = texture2D(map, p * 0.5 + 0.5);
-        vec3 c = img.a > 0.001 ? linearToOutputTexel(vec4(toneMapping(img.rgb / img.a), 1.0)).rgb : uBg;
-        c = mix(uBg, c, img.a);
-        float inner = 1.0 - smoothstep(1.0 - 5.0 * px, 1.0 - 4.0 * px, q);   // zdjęcie w białej obwódce (4 px)
-        float disc = 1.0 - smoothstep(1.0 - px, 1.0, q);
-        float sh = 0.12 * exp(-pow(max(length(p - vec2(0.0, -0.07)) - 0.96, 0.0) * 5.0, 2.0)); // miękki cień pod kołem
-        vec4 res = mix(vec4(vec3(0.0), sh), vec4(mix(vec3(1.0), c, inner), 1.0), disc);
-        gl_FragColor = vec4(res.rgb, res.a * uA);
-      }`,
-  });
-  l.quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), l.mat);
-  l.quad.frustumCulled = false;
-});
-const ovScene = new THREE.Scene(), ovCam = new THREE.OrthographicCamera(0, 1, 0, -1, -1, 1);
-LP.forEach((l) => ovScene.add(l.quad));
-const lpCam = new THREE.PerspectiveCamera(18, 1, 0.02, 60);
-const LP_M = 1.35, LP_LABEL_W = 300, LP_GAP = 40, LP_COMPACT_BOTTOM = 40; // zapas kwadratu wokół koła (cień); szerokość podpisu jak w CSS; odstęp koła od modelu; odstęp opisu od dołu (tablet, telefon)
-let lpA = 0, lpD = 120, lpTop = 200;
-// narożniki prostopadłościanu wokół modelu (układ obracanej grupy): z nich co klatkę wychodzi obrys modelu na ekranie
-const boxCorners = [];
-{
-  pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); pivot.scale.setScalar(1); pivot.updateMatrixWorld(true);
-  const b = new THREE.Box3().setFromObject(halo);
-  for (let k = 0; k < 8; k++) boxCorners.push(new THREE.Vector3(k & 1 ? b.max.x : b.min.x, k & 2 ? b.max.y : b.min.y, k & 4 ? b.max.z : b.min.z));
-}
-// Tablet i telefon (L.compact): bez zbliżeń. Na modelu pulsuje punkt opisywanej części, a opis stoi zawsze w lewym
-// dolnym rogu z paskiem stanu nad nim (5 odcinków, aktywny wypełnia się przy przewijaniu); punkt i tekst przenikają się
-// z następnymi, więc nic się nie zderza.
-const lpBar = document.createElement('div');
-lpBar.className = 'lp-bar'; lpBar.setAttribute('aria-hidden', 'true');
-lpBar.innerHTML = '<i><b></b></i>'.repeat(5);
-$('#design').appendChild(lpBar);
-const lpBarFill = $$('b', lpBar);
-let lpTextY = 0;
-function placeLoupes() {
-  const W = innerWidth, H = innerHeight;
-  document.documentElement.classList.toggle('compact', L.compact);
-  lpD = Math.min(0.1 * W, 0.155 * H);
-  const res = Math.min(512, Math.round(lpD * 1.4 * Math.min(devicePixelRatio, 2)));
-  LP.forEach((l) => l.rt.setSize(res, res));
-  ovCam.right = W; ovCam.bottom = -H; ovCam.updateProjectionMatrix();
-  lpTop = rel('.anat-head', '#design').bottom + 24; // koła nie wchodzą na tytuł
-  // telefon i tablet: wszystkie opisy w jednym miejscu, wyrównane do dołu; pasek stanu nad najwyższym z nich
-  const pad = Math.max(24, 0.045 * W), hMax = Math.max(...LP.map((l) => l.el.offsetHeight));
-  lpTextY = H - LP_COMPACT_BOTTOM - hMax;
-  lpBar.style.transform = `translate(${pad}px, ${lpTextY - 26}px)`;
-  // strona każdej cechy: po której stronie obrysu modelu leży jej punkt w jej własnym ujęciu
-  LP.forEach((l, i) => {
-    const p = featPose(i);
-    pivot.position.set(p.px, p.py, p.pz); pivot.rotation.set(p.rx, p.ry, p.rz, 'YXZ'); pivot.scale.setScalar(p.s); pivot.updateMatrixWorld(true);
-    camera.position.set(0, p.camY, L.dist); camera.lookAt(0, p.camTY, 0); camera.updateMatrixWorld();
-    let x0 = Infinity, x1 = -Infinity;
-    boxCorners.forEach((c) => { cTmp.copy(c).applyMatrix4(pivot.matrixWorld).project(camera); x0 = Math.min(x0, cTmp.x); x1 = Math.max(x1, cTmp.x); });
-    l.at.getWorldPosition(wTmp).project(camera);
-    l.left = wTmp.x < (x0 + x1) / 2;
-  });
-}
-const wTmp = new THREE.Vector3(), dTmp = new THREE.Vector3(), cTmp = new THREE.Vector3();
-// v: postęp cech 0–5, a: krycie całej lupy. Renderuje widoczne zbliżenia do tekstur, ustawia koła, linie i podpisy.
-function drawLoupes(a, v) {
-  if (a < 0.002) {
-    if (lpA >= 0.002) {
-      LP.forEach((l) => { l.el.style.visibility = 'hidden'; l.quad.visible = false; l.line.style.opacity = l.dot.style.opacity = l.pulse.style.opacity = 0; });
-      lpBar.style.opacity = 0; lpA = a;
-    }
-    return;
-  }
-  lpA = a;
-  const W = innerWidth, H = innerHeight, unit = halo.matrixWorld.getMaxScaleOnAxis(), compact = L.compact;
-  // obrys modelu na ekranie
-  let x0 = Infinity, x1 = -Infinity;
-  boxCorners.forEach((c) => { cTmp.copy(c).applyMatrix4(pivot.matrixWorld).project(camera); const x = (cTmp.x * 0.5 + 0.5) * W; x0 = Math.min(x0, x); x1 = Math.max(x1, x); });
-  const pad = Math.max(24, 0.045 * W), top = lpTop;
-  // pasek stanu (tablet, telefon): odcinki przed aktywnym pełne, aktywny wypełnia się w trakcie swojej cechy
-  lpBar.style.opacity = compact ? a : 0;
-  if (compact) lpBarFill.forEach((b, j) => { b.style.transform = `scaleX(${clamp(v - j + 0.15, 0, 1).toFixed(3)})`; });
-  renderer.shadowMap.autoUpdate = false; // cienie policzone w głównym przebiegu
-  LP.forEach((l, i) => {
-    // cecha i pojawia się, gdy poprzednia już prawie zgasła, i gaśnie przed przejściem do następnej; ostatnia gaśnie z sekcją
-    const vin = smooth(seg(v, i - 0.22, i + 0.15)), vout = i === 4 ? 1 : 1 - smooth(seg(v, i + 0.55, i + 0.85));
-    const vis = i === 0 ? vout : vin * vout, show = a * vis;
-    l.quad.visible = !compact && show > 0.002;
-    if (show <= 0.002) { l.el.style.visibility = 'hidden'; l.line.style.opacity = l.dot.style.opacity = l.pulse.style.opacity = 0; return; }
-    l.at.getWorldPosition(wTmp);
-    const s = wTmp.clone().project(camera), ax = (s.x * 0.5 + 0.5) * W, ay = (-s.y * 0.5 + 0.5) * H;
-    l.dot.setAttribute('cx', ax); l.dot.setAttribute('cy', ay); l.dot.style.opacity = show;
-    l.pulse.setAttribute('cx', ax); l.pulse.setAttribute('cy', ay); l.pulse.style.opacity = show;
-    const st = l.el.style;
-    st.visibility = 'visible'; st.opacity = show;
-    if (compact) { // tylko punkt i opis w stałym miejscu
-      l.line.style.opacity = 0; l.el.classList.remove('l');
-      st.transform = `translate(${pad}px, ${lpTextY + (1 - vin) * 8}px)`;
-      return;
-    }
-    // zbliżenie: kamera z bliska wzdłuż kierunku w układzie słuchawek
-    dTmp.set(...l.dir).normalize().transformDirection(halo.matrixWorld);
-    lpCam.position.copy(wTmp).addScaledVector(dTmp, (l.span * unit) / 2 / Math.tan(degToRad(9)));
-    lpCam.lookAt(wTmp);
-    renderer.setRenderTarget(l.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, lpCam);
-    // koło: tuż za obrysem modelu, po stronie punktu (stałej dla cechy), na jego wysokości; przy pojawianiu się lekko rośnie
-    const d = lpD * lerp(0.9, 1, smooth(seg(v, i - 0.22, i + 0.4))), left = l.left;
-    const x = clamp(left ? x0 - LP_GAP - d / 2 : x1 + LP_GAP + d / 2, pad + d / 2, W - pad - d / 2);
-    const y = clamp(ay - d * 0.35, top + d / 2, H - 150 - d / 2);
-    l.quad.position.set(x, -y, 0); l.quad.scale.setScalar(d * LP_M);
-    l.mat.uniforms.uA.value = show; l.mat.uniforms.uPx.value = d;
-    // linia od brzegu koła do punktu na modelu
-    const dx = ax - x, dy = ay - y, len = Math.hypot(dx, dy) || 1, r = d / 2 + 8;
-    l.line.setAttribute('d', `M${(x + dx / len * r).toFixed(1)},${(y + dy / len * r).toFixed(1)} L${ax.toFixed(1)},${ay.toFixed(1)}`);
-    l.line.style.opacity = show * 0.5;
-    // podpis pod kołem, wyrównany do krawędzi bliżej modelu
-    l.el.classList.toggle('l', left);
-    st.transform = `translate(${left ? x + d / 2 - LP_LABEL_W : x - d / 2}px, ${y + d / 2 + 16 + (1 - vin) * 10}px)`;
-  });
-  renderer.setRenderTarget(null);
-  renderer.shadowMap.autoUpdate = true;
-  if (compact) return;
-  renderer.autoClear = false;
-  renderer.render(ovScene, ovCam);
-  renderer.autoClear = true;
-}
-
-// ---------- Światło: kolor dnia ----------
-const lightCol = new THREE.Color('#fffaf2');
-const light = { c: lightCol, i: 1.4, env: 1 };
-const mix = (stops, h) => { // interpolacja kolorów/liczb wg godziny
-  let i = 0; while (i < stops.length - 2 && h > stops[i + 1][0]) i++;
-  const [h0, a] = stops[i], [h1, b] = stops[i + 1], t = clamp((h - h0) / (h1 - h0), 0, 1);
-  return typeof a === 'number' ? lerp(a, b, t) : new THREE.Color(a).lerp(new THREE.Color(b), t);
-};
-
 // ---------- Stan zależny od miejsca na stronie ----------
 // Położenie i obrót modelu, przemiana w piórko, zanikanie i kolor tła są jedną funkcją pozycji przewijania
-// (a nie osobnymi animacjami w każdej sekcji). Dzięki temu skok w dowolne miejsce, także powrót na górę
-// jednym kliknięciem, zawsze daje właściwe ujęcie. Lenis wygładza samo przewijanie.
-// Konfiguracja: kolor słuchawek. Do pierwszego kliknięcia próbki prowadzi go przewijanie (Kreda → Piasek → Grafit
-// z postojem na każdym), potem wybrany kolor. Poza sekcją słuchawki są białe (Kreda): przy wyjściu przechodzą w biel w obrocie.
-const SUN = [['#f1f5ff', 1.45], ['#fff0da', 1.55], ['#ffdcbc', 1.25]];
-const LOOK = ['ceramic', 'metal', 'cushion', 'band', 'inner'];
-const PAL = PALETTES.map((p, i) => ({ ...Object.fromEntries(LOOK.map((k) => [k, new THREE.Color(p[k])])), sun: new THREE.Color(SUN[i][0]), si: SUN[i][1] }));
-const cur = { ...Object.fromEntries(LOOK.map((k) => [k, PAL[0][k].clone()])), sun: PAL[0].sun.clone(), si: PAL[0].si };
-let color = 0;
-
+// (a nie osobnymi animacjami w każdej sekcji). Wszystko liczy się z jednej wartości: przewinięcia strony (wygładza je Lenis),
+// tej samej, z którą jadą sekcje i teksty. Dzięki temu skok w dowolne miejsce daje właściwe ujęcie, model nie zostaje
+// w tyle przy szybkim przewijaniu i nic nie przeskakuje na granicach sekcji.
 // Dzień: bloki słuchania (godziny od-do), bateria 40 h z ANC
 const BLOCKS = [[7.5, 8.5, 'Dojazd', 'redukcja szumów włączona'], [9, 12, 'Praca w skupieniu', 'trzy godziny bez przerwy'], [13, 14, 'Spacer', 'tryb przezroczysty'], [20, 22.5, 'Wieczór z muzyką', 'najdłuższa sesja dnia']];
 const BG_DAY = [[7, '#eef1f4'], [11, '#f5f2ec'], [15, '#f3ede4'], [18.5, '#ecd9c4'], [20, '#5d5049'], [21, '#232226'], [23, '#161618']];
-const SUN_DAY = [[7, '#dce7ff'], [12, '#fff6ea'], [18.5, '#ffbd82'], [20.5, '#8ea4ff'], [23, '#7c92e3']];
-const SUN_I = [[7, 1.3], [12, 1.6], [18.5, 1.3], [20.5, 0.5], [23, 0.35]];
-const ENV_I = [[7, 1], [18, 0.95], [20.5, 0.5], [23, 0.4]];
 
 const B = {};            // granice sekcji w pikselach przewijania
 let POSES = null;        // ujęcia policzone dla bieżącego rozmiaru ekranu
 function measure() {
   const g = (id) => ScrollTrigger.getById(id);
   Object.assign(B, { hE: g('hero').end, dS: g('design').start, dE: g('design').end, kS: g('kol').start, kE: g('kol').end, yS: g('day').start, yE: g('day').end,
-    nS: g('dane').start, nE: g('dane').end, cS: g('kon').start, end: ScrollTrigger.maxScroll(window) });
+    nS: g('dane').start, nE: g('dane').end, cS: g('kon').start, cE: g('kon').end, end: ScrollTrigger.maxScroll(window) });
   POSES = Object.fromEntries(Object.keys(P).map((k) => [k, P[k]()]));
-  placeLoupes();
+  if (G) G.measure();
 }
 const AN_0 = 0.8, AN_U = AN_0 + 5;
 // ujęcie dla każdej cechy (obrót wokół osi pionowej i pochylenie): opisywana część zwrócona do widza.
-// Kolejność jak w LP: poduszki (przez szczelinę między muszlami), pierścień, ceramika, pałąk (lekko z góry),
+// Kolejność jak w opisach: poduszki (przez szczelinę między muszlami), pierścień, ceramika, pałąk (lekko z góry),
 // ramię (pełny obrót w drugą stronę, do lewej muszli)
 const FEAT_ROT = [[-0.45, 0.1], [-1.15, 0.12], [-1.45, 0.06], [-0.7, 0.32], [1.0, 0.12]];
 const featPose = (i) => ({ ...POSES.an, ry: FEAT_ROT[i][0], rx: FEAT_ROT[i][1] }); // Anatomia: dokończenie wejścia słuchawek, potem 5 cech po 1 jednostce
-const io = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2); // power2.inOut
-const seg = (y, a, b) => clamp((y - a) / (b - a), 0, 1);
 const mixPose = (a, b, t) => Object.fromEntries(KEYS.map((k) => [k, lerp(a[k], b[k], t)]));
-const cA = new THREE.Color(), cB = new THREE.Color();
-const mixCol = (a, b, t) => cA.set(a).lerp(cB.set(b), t).getHexString();
-const dipAt = (t) => (t < 0.5 ? 1 - smooth((t - 0.05) / 0.35) : smooth((t - 0.6) / 0.35)); // zanika w połowie przenosin
 
 // ride: ujęcie przesunięte razem z sekcją o dy pikseli przewinięcia (w górę, gdy dy > 0)
 const ride = (p, dy) => ({ ...p, py: p.py + dy * 2 * halfH() / innerHeight });
 // Lądowanie piórka: punkt na górnej krawędzi „Halo” (w telefonie „Lumen”) w stopce. Piórko ma tam stałą szerokość
-// względem ekranu; środek piórka względem środka słuchawek (featherOff) liczy się raz, po zbudowaniu piórka.
+// względem ekranu; środek piórka względem środka słuchawek (G.featherOff) liczy część 3D po zbudowaniu piórka.
 const landEl = $('#land');
-let featherOff = null;
 // featherAt: ujęcie, w którym środek piórka stoi w punkcie ekranu (x, y), a piórko ma szerokość w pikseli
 function featherAt(x, y, w) {
-  const W = innerWidth, H = innerHeight, s = w / W * 2 * halfW() / (FL * feather.scale.x);
-  return pose({ px: (x / W - 0.5) * 2 * halfW() - featherOff.x * s, py: (0.5 - y / H) * 2 * halfH() - featherOff.y * s, rx: KON_R[0], ry: KON_R[1], s, bob: 0 });
+  const W = innerWidth, H = innerHeight, o = G.featherOff, s = w / W * 2 * halfW() / (FL * G.featherScale);
+  return pose({ px: (x / W - 0.5) * 2 * halfW() - o.x * s, py: (0.5 - y / H) * 2 * halfH() - o.y * s, rx: KON_R[0], ry: KON_R[1], s, bob: 0 });
 }
 // miejsce lądowania: środek piórka nad górną krawędzią liter (piórko na nich leży), szerokość względem ekranu
 function landSpot() {
-  const r = landEl.getBoundingClientRect(), w = innerWidth * (!L.mobile ? 0.34 : innerWidth <= 560 ? 0.52 : 0.42);
-  return { x: r.left, y: r.top - featherOff.h * w, w };
+  const r = landEl.getBoundingClientRect();
+  let w = innerWidth * (!L.mobile ? 0.34 : innerWidth <= 560 ? 0.52 : 0.42);
+  // niskie ekrany: piórko (wysokie na ok. 0,45 szerokości) mieści się między odnośnikami stopki a napisem, z zapasem 16 px
+  if (!L.mobile) w = Math.min(w, (r.top - footTopEl.getBoundingClientRect().bottom - 16) / 0.45);
+  return { x: r.left, y: r.top - G.featherOff.h * w, w };
 }
-const landPose = () => { const l = landSpot(); return featherAt(l.x, l.y, l.w); };
 // piórko, które właśnie powstało w miejscu modelu w Kontakcie (komputer: w lewej kolumnie)
 function laneSpot() {
-  const r = $('#kon-lane').getBoundingClientRect(), w = L.mobile ? Math.min(innerWidth * 0.5, 260) : r.width * 0.8;
+  // tablet i telefon: miejsce obok tytułu jest małe, więc piórko ma jego szerokość (pełną dostaje dopiero nad stopką)
+  const r = $('#kon-lane').getBoundingClientRect(), w = r.width * (L.mobile ? 0.9 : 0.8);
   return { x: Math.min(r.left + r.width / 2, innerWidth - w * 0.55), y: r.top + r.height / 2, w };
 }
 const lanePose = () => { const l = laneSpot(); return featherAt(l.x, l.y, l.w); };
 // pusty pas między dołem formularza Kontaktu a odnośnikami stopki: tędy piórko przechodzi w bok (komputer)
 const kformEl = $('#kform'), footTopEl = $('.foot-top');
 const band = () => { const a = kformEl.getBoundingClientRect().bottom, b = footTopEl.getBoundingClientRect().top; return { y: (a + b) / 2, h: b - a }; };
-function measureFeather() {
-  pivot.position.set(0, 0, 0); pivot.rotation.set(KON_R[0], KON_R[1], 0, 'YXZ'); pivot.scale.setScalar(1); pivot.updateMatrixWorld(true);
-  const b = new THREE.Box3().setFromObject(fMesh), c = b.getCenter(new THREE.Vector3());
-  // h: połowa wysokości piórka względem jego szerokości (piórko leży na linii liter, więc środek jest nad nią)
-  featherOff = { x: c.x, y: c.y, h: (b.max.y - b.min.y) / (b.max.x - b.min.x) * 0.6 };
-}
+const featherReady = () => G && G.dust && G.featherOff;
 
-function scrollState(y, yr = y) {
-  const S = { wave: 0, vis: 1, bg: null, day: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0, col: 0, white: 1, spin: 1, e: 0, dane: 0, top: false, land: 0 };
+function scrollState(y) {
+  const S = { wave: 0, vis: 1, bg: null, day: 23, dayMix: 0, clock: null, lp: 0, lpV: 0, ent: 1, light: 0, photo: 0, col: 0, white: 1, spin: 1, e: 0, dane: 0, top: false, land: 0 };
   // wejście słuchawek: razem z pojawianiem się tytułu (od 0,6 Startu) do połowy pierwszej jednostki przypiętej Anatomii
   const ent = seg(y, B.hE * 0.6, B.dS + (B.dE - B.dS) / AN_U * 0.5);
+  const u = innerHeight / (2 * halfH()); // pikseli na jednostkę sceny
   if (y < B.dS) {
     // Start (przypięty): najpierw gaśnie tekst (oś czasu), potem zdjęcie, a pod koniec pojawia się smuga światła
     // i tytuł Anatomii (pętla); potem sekcja Anatomia dojeżdża pod stojący już tytuł.
@@ -642,77 +194,95 @@ function scrollState(y, yr = y) {
   else if (y <= B.dE) {
     // Anatomia (lupa): zbliżenia pojawiają się, gdy model jest już ostry, potem 5 cech od AN_0 po jednej jednostce;
     // model stoi na środku i tylko lekko się obraca
-    const u = seg(y, B.dS, B.dE) * AN_U, v = u - AN_0;
+    const k = seg(y, B.dS, B.dE) * AN_U, v = k - AN_0;
     S.ent = ent;
-    S.light = 0.85 * (1 - seg(u, AN_U - 0.25, AN_U));
+    S.light = 0.85 * (1 - seg(k, AN_U - 0.25, AN_U));
     S.bg = ANAT_BG.slice(1);
     // obrót zgrany z cechami: model obraca się do następnego ujęcia, gdy jedna cecha gaśnie, a następna się pojawia
     // obrót trwa dłużej niż zmiana opisu (od połowy jednej cechy do początku następnej), więc jest łagodny
-    let f = 0; for (let k = 0; k < 4; k++) f += io(seg(v, k + 0.5, k + 1.2));
-    const k = Math.min(3, Math.floor(f));
-    S.pose = mixPose(featPose(k), featPose(k + 1), f - k);
-    S.lp = smooth(seg(v, -0.45, -0.05)) * (1 - smooth(seg(u, AN_U - 0.35, AN_U - 0.12)));
+    let f = 0; for (let j = 0; j < 4; j++) f += io(seg(v, j + 0.5, j + 1.2));
+    const j = Math.min(3, Math.floor(f));
+    S.pose = mixPose(featPose(j), featPose(j + 1), f - j);
+    S.lp = smooth(seg(v, -0.45, -0.05)) * (1 - smooth(seg(k, AN_U - 0.35, AN_U - 0.12)));
     S.lpV = v;
   }
   // Anatomia → oferta: model przesuwa się do kolumny konfiguratora i lekko dokręca, tło przechodzi w białe
   // (model dochodzi do swojej kolumny, zanim wjedzie tekst)
   else if (y < B.kS) { const t = seg(y, B.dE, B.kS); S.pose = mixPose(featPose(4), POSES.kol, io(Math.min(1, t * 1.4))); S.bg = mixCol(ANAT_BG, '#ffffff', t); S.white = 1 - t; }
-  else if (y <= B.kE && yr <= B.kE) {
+  else if (y <= B.kE) {
     // Konfiguracja (przypięta): kolor idzie za przewijaniem, z postojem na każdym (Kreda, Piasek, Grafit)
     const p = seg(y, B.kS, B.kE);
     S.pose = POSES.kol; S.bg = 'ffffff'; S.white = 0;
     S.col = io(seg(p, 0.15, 0.35)) + io(seg(p, 0.5, 0.7));
   }
-  else if (y < B.yS || yr < B.yS) {
+  else if (y < B.yS) {
     // Konfiguracja → Użytkowanie. Model jedzie w górę razem ze swoją sekcją, obraca się, przechodzi w biel i gaśnie
     // razem z cieniem i podpisem; w Użytkowaniu pojawia się dopiero, gdy jego sekcja prawie dojechała, i wjeżdża razem z nią.
-    // Położenie i krycie liczy prawdziwe przewinięcie (yr), więc przy szybkim przewijaniu model nie zostaje w miejscu.
-    const t = seg(yr, B.kE, B.yS), ts = seg(y, B.kE, B.yS), u = innerHeight / (2 * halfH());
+    // Światło przechodzi w poranne, gdy modelu nie widać.
+    const t = seg(y, B.kE, B.yS);
     const out = 1 - smooth(seg(t, 0.12, 0.42)), inn = smooth(seg(t, 0.62, 0.92));
-    S.pose = t < 0.5 ? { ...POSES.kol, py: POSES.kol.py + Math.max(0, yr - B.kE) / u } : { ...POSES.day, py: POSES.day.py - Math.max(0, B.yS - yr) / u };
-    S.pose.ry += io(ts) * Math.PI;
+    S.pose = t < 0.5 ? ride(POSES.kol, y - B.kE) : ride(POSES.day, -(B.yS - y));
+    S.pose.ry += io(t) * Math.PI;
     S.vis = t < 0.5 ? out : inn; S.spin = out;
     S.bg = mixCol('#ffffff', BG_DAY[0][1], t);
-    S.col = 2; S.white = smooth(seg(ts, 0, 0.4));
+    S.col = 2; S.white = smooth(seg(t, 0, 0.4));
+    S.day = 7; S.dayMix = smooth(seg(t, 0.4, 0.62));
   }
-  else if (y <= B.yE) { const u = seg(y, B.yS, B.yE); S.pose = { ...POSES.day, ry: POSES.day.ry + Math.PI + u * Math.PI * 2 }; S.day = lerp(7, 23, smooth((u - 0.04) / 0.76)); }
-  else if (yr < B.nS || y < B.nS) {
-    // Użytkowanie → Dane („świt”): tło jaśnieje, model jedzie w górę razem z Użytkowaniem. Komputer: wyjeżdża z nim za ekran
-    // i wlatuje do Danych w ich przypiętej części, zanim pojawi się tekst. Tablet, telefon: gaśnie w połowie drogi
-    // i pojawia się już w swoim miejscu w Danych, wjeżdżając razem z nimi.
-    const t = seg(yr, B.yE, B.nS), dayEnd = { ...POSES.day, ry: POSES.day.ry + Math.PI };
-    S.bg = mixCol(BG_DAY[BG_DAY.length - 1][1], '#ffffff', smooth(seg(t, 0.1, 0.9)));
-    if (!L.mobile || t < 0.5) { S.pose = ride(dayEnd, Math.max(0, yr - B.yE)); if (L.mobile) S.vis = 1 - smooth(seg(t, 0.12, 0.42)); }
-    else { S.pose = ride(POSES.dane, -(B.nS - yr)); S.vis = smooth(seg(t, 0.62, 0.92)); }
+  else if (y <= B.yE) {
+    const k = seg(y, B.yS, B.yE);
+    S.pose = { ...POSES.day, ry: POSES.day.ry + Math.PI + k * Math.PI * 2 };
+    S.day = S.clock = lerp(7, 23, smooth((k - 0.04) / 0.76)); S.dayMix = 1;
+    S.bg = mixStops(BG_DAY, S.day);
   }
-  else if (y <= B.nE && yr <= B.nE) {
+  else if (y < B.nS) {
+    // Użytkowanie → Dane („świt”): tło jaśnieje, a światło na modelu razem z nim (z nocnego na dzienne), model jedzie
+    // w górę razem z Użytkowaniem. Komputer: wyjeżdża z nim za ekran i wlatuje do Danych w ich przypiętej części, zanim
+    // pojawi się tekst. Tablet, telefon: gaśnie w połowie drogi i pojawia się już w swoim miejscu w Danych.
+    const t = seg(y, B.yE, B.nS), dayEnd = { ...POSES.day, ry: POSES.day.ry + Math.PI };
+    const dawn = smooth(seg(t, 0.1, 0.9));
+    S.bg = mixCol(BG_DAY[BG_DAY.length - 1][1], '#ffffff', dawn);
+    S.day = 23; S.dayMix = 1 - dawn;
+    if (!L.mobile || t < 0.5) { S.pose = ride(dayEnd, y - B.yE); if (L.mobile) S.vis = 1 - smooth(seg(t, 0.12, 0.42)); }
+    else { S.pose = ride(POSES.dane, -(B.nS - y)); S.vis = smooth(seg(t, 0.62, 0.92)); }
+  }
+  else if (y <= B.nE) {
     // Dane (przypięte): przelot do lewej kolumny (komputer), rozłożenie na części, chwila postoju, złożenie
     const p = seg(y, B.nS, B.nE), dayEnd = { ...POSES.day, ry: POSES.day.ry + Math.PI };
-    S.e = io(seg(p, 0.16, 0.56)) * (1 - io(seg(p, 0.82, 0.96)));
+    S.e = io(seg(p, 0.27, 0.6)) * (1 - io(seg(p, 0.82, 0.96)));
     const at = { ...POSES.dane, ry: lerp(POSES.dane.ry, -0.35, S.e), rx: lerp(0.12, 0.14, S.e) };
-    const fly = L.mobile ? 1 : io(seg(seg(yr, B.nS, B.nE), 0, 0.14));
-    S.pose = fly < 1 ? mixPose(ride(dayEnd, innerHeight), at, fly) : at;
+    const fly = L.mobile ? 1 : io(seg(p, 0, 0.26)); // przelot na ok. ćwierć przypięcia: łagodny, bez szarpnięcia
+    S.pose = fly < 1 ? mixPose(ride(dayEnd, B.nS - B.yE), at, fly) : at; // start dokładnie tam, gdzie skończył się przejazd
     S.dane = p; S.bg = 'ffffff';
   }
-  else if (yr < B.cS || y < B.cS) {
+  else if (y < B.cS) {
     // Dane → Kontakt. Komputer: lewa kolumna jest miejscem modelu w obu sekcjach, więc model zostaje i tylko się zmniejsza,
     // a prawa kolumna się wymienia. Tablet, telefon: model jedzie z Danymi, gaśnie i pojawia się obok tytułu Kontaktu.
-    const t = seg(yr, B.nE, B.cS), ts = seg(y, B.nE, B.cS);
-    if (!L.mobile) S.pose = mixPose(POSES.dane, POSES.kon, io(ts));
-    else if (t < 0.5) { S.pose = ride(POSES.dane, Math.max(0, yr - B.nE)); S.vis = 1 - smooth(seg(t, 0.12, 0.42)); }
-    else { S.pose = ride(POSES.kon, -(B.cS - yr)); S.vis = smooth(seg(t, 0.62, 0.92)); }
+    const t = seg(y, B.nE, B.cS);
+    if (!L.mobile) S.pose = mixPose(POSES.dane, POSES.kon, io(t));
+    else if (t < 0.5) { S.pose = ride(POSES.dane, y - B.nE); S.vis = 1 - smooth(seg(t, 0.12, 0.42)); }
+    else { S.pose = ride(POSES.kon, -(B.cS - y)); S.vis = smooth(seg(t, 0.62, 0.92)); }
     S.dane = 1; S.bg = 'ffffff';
   }
+  else if (y <= B.cE) {
+    // Kontakt (przypięty): słuchawki jeszcze chwilę zostają na swoim miejscu i przy przewijaniu kołyszą się w lewo
+    // i w prawo, a potem w tym samym miejscu rozsypują się w szare drobinki, które składają się w piórko.
+    const p = seg(y, B.cS, B.cE), sw = Math.sin(seg(p, 0, 0.5) * Math.PI * 2);
+    const k = { ...POSES.kon, ry: POSES.kon.ry + 0.32 * sw, rz: -0.06 * sw };
+    S.dane = 1; S.bg = 'ffffff';
+    if (!featherReady()) { S.pose = k; return S; } // piórko jeszcze się liczy: słuchawki zostają
+    S.wave = smooth(seg(p, 0.5, 1));
+    S.pose = mixPose(k, lanePose(), S.wave);
+    // tło przechodzi w ciepłą szarość stopki, gdy powstaje piórko: białe piórko jest na niej dobrze widoczne
+    S.bg = mixCol('#ffffff', ANAT_BG, smooth(seg(p, 0.55, 0.95)));
+  }
   else {
-    // Kontakt → stopka: słuchawki rozsypują się w piórko, które jedzie w górę razem z Kontaktem, a gdy wjeżdża stopka,
-    // odrywa się i z kołysaniem opada na napis „Lumen Halo”. Najpierw w bok, potem w dół, przez pusty środek stopki.
-    const t = seg(yr, B.cS, B.end), ts = seg(y, B.cS, B.end), T0 = 0.45;
+    // Kontakt → stopka: piórko jedzie w górę razem z Kontaktem, a gdy wjeżdża stopka, odrywa się i z kołysaniem
+    // opada na napis „Lumen Halo”. Najpierw w bok, potem w dół, przez pusty środek stopki.
+    const t = seg(y, B.cE, B.end), T0 = 0.45;
     S.dane = 1;
-    S.bg = mixCol('#ffffff', ANAT_BG, smooth(seg(t, 0.35, 0.8)));
-    if (!dust || !featherOff) { S.pose = ride(POSES.kon, Math.max(0, yr - B.cS)); S.vis = 1 - smooth(seg(t, 0.05, 0.3)); return S; }
-    S.wave = smooth(seg(ts, 0.03, 0.4));
-    // w trakcie rozsypywania model przechodzi w piórko o szerokości kolumny i jedzie z Kontaktem (lanePose liczy się z położenia sekcji)
-    if (t < T0) S.pose = mixPose(ride(POSES.kon, Math.max(0, yr - B.cS)), lanePose(), S.wave);
+    if (!featherReady()) { S.pose = ride(POSES.kon, y - B.cE); S.vis = 1 - smooth(seg(t, 0.05, 0.3)); S.bg = mixCol('#ffffff', ANAT_BG, smooth(seg(t, 0.35, 0.8))); return S; }
+    S.wave = 1; S.bg = ANAT_BG.slice(1);
+    if (t < T0) S.pose = lanePose(); // lanePose liczy się z położenia sekcji, więc piórko jedzie z nią
     else {
       // Komputer: w dół pustą lewą kolumną do pasa między formularzem a stopką, w bok wzdłuż pasa, na końcu na napis.
       // Tablet, telefon: pas jest za wąski, więc piórko wyjeżdża z Kontaktem w górę, a potem wlatuje z prawej
@@ -746,29 +316,28 @@ function buildTrack() {
 }
 buildTrack();
 const dayEls = { sec: $('#uzytkowanie'), clock: $('#d-clock'), what: $('#d-what'), now: $('#d-now'), level: $('#d-level'), pct: $('#d-pct'), note: $('#d-note'), blk: $$('#d-track .blk i') };
-let lastDay = '', dayLight = null;
-function setDay(h) {
+let lastDay = '';
+function setDay(h, bg) {
   const listened = BLOCKS.reduce((s, [a, b]) => s + clamp(h - a, 0, b - a), 0), pct = Math.round(100 - listened / 40 * 100);
   const hh = Math.floor(h), mm = Math.floor((h - hh) * 12) * 5, clock = `${hh}:${String(mm).padStart(2, '0')}`;
   const act = BLOCKS.find(([a, b]) => h >= a && h < b);
-  const bg = mix(BG_DAY, h), night = bg.r * 0.3 + bg.g * 0.59 + bg.b * 0.11 < 0.42;
-  dayLight = { c: mix(SUN_DAY, h), i: mix(SUN_I, h), env: mix(ENV_I, h), bg: bg.getHexString() };
+  const night = luma(bg) < 0.42;
   dayEls.now.style.left = (h - 7) / 16 * 100 + '%';
   BLOCKS.forEach(([a, b], i) => { dayEls.blk[i].style.transform = `scaleX(${clamp((h - a) / (b - a), 0, 1)})`; });
   dayEls.level.style.width = pct + '%';
-  const key = clock + pct + night;
+  const key = clock + pct + night + L.mobile;
   if (key === lastDay) return;
   lastDay = key;
   dayEls.clock.textContent = clock;
   dayEls.what.textContent = act ? `${act[2]} · ${act[3]}` : (h < 7.5 ? 'Pobudka · słuchawki w etui' : h >= 22.5 ? 'Dobranoc · do jutra wystarczy' : 'Przerwa · słuchawki w etui');
   dayEls.pct.textContent = pct + '%';
-  dayEls.note.textContent = h >= 22.5 ? 'baterii po całym dniu słuchania' : 'baterii';
+  // telefon (Figma): pod osią sama bateria z krótkim podpisem
+  dayEls.note.textContent = innerWidth <= 560 ? 'baterii zostało' : h >= 22.5 ? 'baterii po całym dniu słuchania' : 'baterii';
   dayEls.sec.classList.toggle('night', night);
 }
 
 // ---------- Pętla ----------
-let lastBg = '', dayActive = false, lastHead = '', lastTime = 0, ySm = null;
-const lpState = { a: 0, v: 0 };
+let lastBg = '', lastHead = '', lastTime = 0, lastOpacity = -1;
 const navLinks = $$('.menu a, .mmenu nav a'), NAV_SECT = ['#start', '#design', '#konfiguracja', '#uzytkowanie', '#dane', '#kontakt']; let navOn = -1;
 const footEl = $('#stopka'); let lastTop = false, lastLand = -1;
 // Dane: na komputerze tytuł pojawia się, gdy model już wleciał, a wiersze po kolei w rytm rozkładania; na końcu przypięcia gasną
@@ -779,83 +348,53 @@ function setDane(p) {
   if (key === lastDane) return;
   lastDane = key;
   const out = L.mobile ? 1 : 1 - smooth(seg(p, 0.82, 0.95));
-  const head = (L.mobile ? 1 : smooth(seg(p, 0.12, 0.2))) * out;
+  const head = (L.mobile ? 1 : smooth(seg(p, 0.22, 0.3))) * out;
   daneHead.forEach((el) => { el.style.opacity = head; el.style.transform = `translateY(${((1 - head) * 16).toFixed(1)}px)`; });
-  daneRows.forEach((el, i) => { const o = smooth(seg(p, 0.16 + i * 0.045, 0.22 + i * 0.045)) * out; el.style.opacity = o; el.style.transform = `translateY(${((1 - o) * 12).toFixed(1)}px)`; });
+  daneRows.forEach((el, i) => { const o = smooth(seg(p, 0.27 + i * 0.04, 0.33 + i * 0.04)) * out; el.style.opacity = o; el.style.transform = `translateY(${((1 - o) * 12).toFixed(1)}px)`; });
 }
 const spinEl = $('#spin'); let lastSpin = 1;
 const headKids = $$('.anat-head > *');
+let dustAsk = false, dustIdle = false;
 function frame(time) {
-  const t = time;
-  // stan 3D idzie za przewijaniem z lekkim opóźnieniem (ok. 0,35 s): szybkie przewinięcie nie szarpie modelem,
-  // a teksty na osi czasu GSAP i tak doganiają przewijanie z opóźnieniem (scrub)
   const dt = Math.min(0.1, Math.max(0, time - lastTime)); lastTime = time;
-  ySm = reduce || ySm == null ? window.scrollY : ySm + (window.scrollY - ySm) * (1 - Math.exp(-dt / 0.35));
-  if (POSES) {
-    const S = scrollState(ySm, window.scrollY);
-    if (S.spin !== lastSpin) { spinEl.style.opacity = S.spin; lastSpin = S.spin; }
-    const ent = setEntrance(S.ent);
-    Object.assign(rig, S.pose); rig.wave = S.wave; rig.vis = S.vis;
-    explode(S.e); setDane(S.dane);
-    if (S.top !== lastTop) { canvas.style.zIndex = S.top ? 3 : ''; lastTop = S.top; } // lądujące piórko nad napisem w stopce
-    if (S.land !== lastLand) { footEl.style.setProperty('--land', S.land.toFixed(3)); lastLand = S.land; }
-    rig.ry += ent.turn; rig.ent = ent.a;
-    setLight(S.light, S.photo);
-    // tytuł Anatomii pojawia się, gdy gaśnie zdjęcie, i stoi w miejscu, a sekcja dojeżdża pod niego
-    // (przesuwane są dzieci nagłówka, bo cały nagłówek gasi oś czasu na końcu sekcji)
-    const y = window.scrollY, hIn = smooth(seg(ySm, B.hE * 0.55, B.hE * 0.85)); // położenie wg prawdziwego przewinięcia (sekcja jedzie z nim), krycie wg wygładzonego
-    const head = hIn.toFixed(3) + Math.round(Math.max(0, B.dS - y));
-    if (head !== lastHead) {
-      headKids.forEach((el) => { el.style.opacity = hIn; el.style.transform = `translateY(${(-Math.max(0, B.dS - y) + (1 - hIn) * 24).toFixed(1)}px)`; });
-      lastHead = head;
-    }
-    if (S.day != null) setDay(S.day);
-    dayActive = S.day != null;
-    const bg = dayActive ? dayLight.bg : S.bg;
-    if (bg !== lastBg) {
-      backdrop.style.backgroundColor = '#' + bg; lastBg = bg;
-      // na ciemnym tle (wieczór w Użytkowaniu) logo, koszyk i ikona menu są jasne
-      const c = new THREE.Color('#' + bg); document.documentElement.classList.toggle('nav-light', c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.25);
-    }
-    lpState.a = S.lp; lpState.v = S.lpV;
-    applyLook(S.col, S.white, dt);
-    // strefa konfiguracji (granice z przypięć; ScrollTrigger liczy końce za przypiętą sekcją bez jej długości):
-    // pasek z ceną po wybraniu koloru, a po wyjściu z niej model wraca do swojego obrotu
-    const zone = y >= B.kS - innerHeight * 0.5 && y < B.kE + innerHeight * 0.6;
-    if (zone !== barZone) { barZone = zone; showBar(); if (!zone) resetDrag(); }
-    // menu: bieżąca sekcja, gdy jej góra minie 55% wysokości ekranu
-    const h = innerHeight, on = [0, B.dS, B.kS, B.yS, B.nS, B.cS].filter((s) => y >= s - 0.55 * h).length - 1;
-    if (on !== navOn) { navLinks.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === NAV_SECT[on])); navOn = on; }
+  if (!POSES) return;
+  const y = window.scrollY, S = scrollState(y);
+  if (S.spin !== lastSpin) { spinEl.style.opacity = S.spin; lastSpin = S.spin; }
+  const ent = setEntrance(S.ent);
+  Object.assign(rig, S.pose); rig.wave = S.wave; rig.vis = S.vis;
+  setDane(S.dane);
+  if (S.top !== lastTop) { canvas.style.zIndex = S.top ? 3 : ''; lastTop = S.top; } // lądujące piórko nad napisem w stopce
+  if (S.land !== lastLand) { footEl.style.setProperty('--land', S.land.toFixed(3)); lastLand = S.land; }
+  rig.ry += ent.turn; rig.ent = ent.a;
+  setLight(S.light, S.photo);
+  // tytuł Anatomii pojawia się, gdy gaśnie zdjęcie, i stoi w miejscu, a sekcja dojeżdża pod niego
+  // (przesuwane są dzieci nagłówka, bo cały nagłówek gasi oś czasu na końcu sekcji)
+  const hIn = smooth(seg(y, B.hE * 0.55, B.hE * 0.85));
+  const head = hIn.toFixed(3) + Math.round(Math.max(0, B.dS - y));
+  if (head !== lastHead) {
+    headKids.forEach((el) => { el.style.opacity = hIn; el.style.transform = `translateY(${(-Math.max(0, B.dS - y) + (1 - hIn) * 24).toFixed(1)}px)`; });
+    lastHead = head;
   }
-  const bob = reduce ? 0 : Math.sin(t * 0.9) * 0.05 * rig.bob;
-  pivot.position.set(rig.px, rig.py + bob, rig.pz);
-  const sway = reduce ? 0 : Math.sin(t * 0.45) * 0.16 * rig.sway; // oferta: powolne kołysanie na boki
-  pivot.rotation.set(rig.rx + drag.x, rig.ry + drag.y + sway, rig.rz, 'YXZ');
-  pivot.scale.setScalar(rig.s);
-  camera.position.set(0, rig.camY, L.dist);
-  camera.lookAt(0, rig.camTY, 0);
-  const L0 = dayActive && dayLight ? dayLight : light;
-  sun.color.copy(L0.c); sun.intensity = L0.i;
-  scene.environmentIntensity = L0.env;
-  if (dust) {
-    dust.visible = rig.wave > 0.0005;
-    dust.material.uniforms.uW.value = rig.wave;
-    dust.material.uniforms.uTime.value = t;
-    const cut = rig.wave > 0.0005 ? cutAt(rig.wave * RUN) : -1e3;
-    clipLocal.set(new THREE.Vector3(1, 0, 0), -cut);
-    feather.visible = dust.visible;
-    fRev.value = rig.wave * RUN;
-    // gotowe piórko unosi się i lekko kołysze; zaczyna dopiero, gdy drobinki już zgasły, żeby się z nimi nie rozjechało
-    const k = reduce ? 0 : smooth((rig.wave - 0.95) / 0.05);
-    fMesh.rotation.set(Math.sin(t * 0.6) * 0.05 * k, Math.sin(t * 0.45) * 0.08 * k, Math.sin(t * 0.7 + 1) * 0.04 * k);
-    fMesh.position.y = Math.sin(t * 0.8) * 0.09 * k;
-    fShadow.visible = false;
-    pivot.updateMatrixWorld(true);
-    clipWorld.copy(clipLocal).applyMatrix4(pivot.matrixWorld);
+  if (S.clock != null) setDay(S.clock, S.bg);
+  if (S.bg !== lastBg) {
+    backdrop.style.backgroundColor = '#' + S.bg; lastBg = S.bg;
+    // na ciemnym tle (wieczór w Użytkowaniu) logo, koszyk i ikona menu są jasne
+    document.documentElement.classList.toggle('nav-light', luma(S.bg) < 0.25);
   }
-  canvas.style.opacity = rig.alpha * rig.vis * appear.v * rig.ent;
-  renderer.render(scene, camera);
-  drawLoupes(lpState.a * rig.ent, lpState.v);
+  if (!picked) { if (Math.abs(S.col - ringX) > 0.001) placeRing(S.col); setColor(Math.round(S.col)); }
+  // strefa konfiguracji (granice z przypięć; ScrollTrigger liczy końce za przypiętą sekcją bez jej długości):
+  // pasek z ceną po wybraniu koloru, a po wyjściu z niej model wraca do swojego obrotu
+  const zone = y >= B.kS - innerHeight * 0.5 && y < B.kE + innerHeight * 0.6;
+  if (zone !== barZone) { barZone = zone; showBar(); if (!zone) resetDrag(); }
+  // menu: bieżąca sekcja, gdy jej góra minie 55% wysokości ekranu
+  const h = innerHeight, on = [0, B.dS, B.kS, B.yS, B.nS, B.cS].filter((s) => y >= s - 0.55 * h).length - 1;
+  if (on !== navOn) { navLinks.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === NAV_SECT[on])); navOn = on; }
+  const opacity = rig.alpha * rig.vis * appear.v * rig.ent;
+  if (Math.abs(opacity - lastOpacity) > 0.0005) { canvas.style.opacity = opacity; lastOpacity = opacity; }
+  if (!G) return;
+  // piórko liczy się w tle, gdy czytelnik dojdzie do Użytkowania (albo po kilku sekundach bezczynności)
+  if (!dustAsk && (dustIdle || y > B.yS - innerHeight)) { dustAsk = true; G.buildDust(); }
+  G.frame(time, dt, { e: S.e, col: S.col, white: S.white, picked, color, day: S.day, dayMix: S.dayMix, lpA: S.lp, lpV: S.lpV, opacity });
 }
 
 // ---------- Przewijanie: przypięcia sekcji i teksty ----------
@@ -880,15 +419,15 @@ function timelines() {
 
   // 5. Dane techniczne: przypięte; model wlatuje (komputer), rozkłada się, wiersze pojawiają się po kolei (scrollState, setDane)
   ScrollTrigger.create({ id: 'dane', trigger: '#dane', start: 'top top', end: '+=180%', pin: true });
-  // 6. Kontakt i 7. stopka: bez przypięcia; od góry Kontaktu do końca strony słuchawki zamieniają się w piórko, które spada na napis
-  ScrollTrigger.create({ id: 'kon', trigger: '#kontakt', start: 'top top', end: 'bottom top' });
+  // 6. Kontakt: przypięty na jeden ekran: słuchawki kołyszą się, potem rozsypują w piórko; 7. stopka: piórko spada na napis
+  ScrollTrigger.create({ id: 'kon', trigger: '#kontakt', start: 'top top', end: '+=100%', pin: true });
 
   ScrollTrigger.addEventListener('refresh', measure);
 }
 
 // ---------- Konfigurator ----------
 const swBtns = $$('.sw'), optBtns = $$('.opt'), buybar = $('#buybar');
-let extra = 0, picked = false, barZone = false;
+let extra = 0, picked = false, barZone = false, color = 0;
 const NBSP = String.fromCharCode(160), fmt = (n) => (n >= 1000 ? Math.floor(n / 1000) + NBSP + String(n % 1000).padStart(3, '0') : String(n)); // 1 899 zł jak w reszcie strony
 function updateSum() {
   const total = fmt(1899 + extra) + ' zł', etui = optBtns.find((o) => o.getAttribute('aria-checked') === 'true').dataset.name;
@@ -919,25 +458,6 @@ function setColor(i) {
   color = i;
   swBtns.forEach((b, k) => b.setAttribute('aria-checked', String(k === i)));
   updateSum();
-}
-// kolor w pętli: przewijanie (do pierwszego kliknięcia) albo wybrany kolor, a poza sekcją biel (Kreda)
-const lookTmp = new THREE.Color();
-function applyLook(x, white, dt) {
-  if (!picked) {
-    const k = Math.min(1, Math.floor(x)), f = x - k;
-    LOOK.forEach((n) => cur[n].copy(PAL[k][n]).lerp(PAL[k + 1][n], f));
-    cur.sun.copy(PAL[k].sun).lerp(PAL[k + 1].sun, f); cur.si = lerp(PAL[k].si, PAL[k + 1].si, f);
-    if (Math.abs(x - ringX) > 0.001) placeRing(x);
-    setColor(Math.round(x));
-  } else { // po kliknięciu kolor dochodzi do wybranego w ok. 0,6 s
-    const q = reduce ? 1 : 1 - Math.exp(-dt / 0.2), P1 = PAL[color];
-    LOOK.forEach((n) => cur[n].lerp(P1[n], q));
-    cur.sun.lerp(P1.sun, q); cur.si = lerp(cur.si, P1.si, q);
-  }
-  const P0 = PAL[0], set = (mat, n) => mat.color.copy(lookTmp.copy(cur[n]).lerp(P0[n], white));
-  set(M.ceramic, 'ceramic'); set(M.metal, 'metal'); set(M.lip, 'metal'); set(M.polish, 'metal'); set(M.pivot, 'metal');
-  set(M.cushion, 'cushion'); set(M.band, 'band'); set(M.inner, 'inner');
-  light.c.copy(cur.sun).lerp(P0.sun, white); light.i = lerp(cur.si, P0.si, white);
 }
 swBtns.forEach((b) => b.addEventListener('click', () => {
   picked = true;
@@ -1004,9 +524,33 @@ layout();
 timelines();
 addEventListener('resize', () => { layout(); });
 gsap.ticker.add((time) => frame(time));
-gsap.to(appear, { v: 1, duration: reduce ? 0 : 1.2, ease: 'power2.out', delay: 0.1 });
-// piórko i drobinki do finału liczą się chwilę po starcie, w wolnych chwilach, żeby nie opóźniać wejścia na stronę
-setTimeout(() => idle().then(buildDust).then(measureFeather), 1500);
+
+// Część 3D: wczytuje się, gdy czytelnik zacznie przewijać albo dotknie strony, a najpóźniej chwilę po wczytaniu strony
+// (gdy przeglądarka ma wolną chwilę). Na pierwszym ekranie słuchawek i tak nie widać, więc nic się nie spóźnia,
+// a strona pokazuje się szybciej i nie zacina się zaraz po wejściu.
+const core = { $, $$, smooth, seg, io, rig, drag, L, halfH, halfW, MODEL_H, FL, KON_R, canvas, reduce, P, rel, featPose };
+const WAKE = ['wheel', 'touchstart', 'pointerdown', 'keydown', 'scroll'];
+let loading = false;
+function load3D() {
+  if (loading) return;
+  loading = true;
+  WAKE.forEach((e) => removeEventListener(e, load3D));
+  import('./lumen-3d.js').then((m) => m.start(core)).then((g) => {
+    G = g;
+    if (POSES) G.measure();
+    gsap.to(appear, { v: 1, duration: reduce ? 0 : 1.2, ease: 'power2.out' });
+    setTimeout(() => { dustIdle = true; }, 6000);
+  }).catch((e) => { document.documentElement.classList.add('no-webgl'); console.warn('3D niedostępne', e); });
+}
+if (scrollY > 0 || location.hash) load3D();
+else {
+  WAKE.forEach((e) => addEventListener(e, load3D, { passive: true }));
+  const later = () => setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(load3D, { timeout: 2000 }) : load3D()), 2500);
+  if (document.readyState === 'complete') later(); else addEventListener('load', later, { once: true });
+}
+
+// diagnostyka (tylko z ?debug w adresie): test ciągłości ujęć i odstępów modelu od tekstu
+if (location.search.includes('debug')) { window.__lumen = { scrollState, B, rig, L, get G() { return G; }, halfH, halfW, MODEL_H }; window.__box = () => G.box(); }
 
 // ---------- Dane (telefon): wszystkie wiersze w arkuszu od dołu ----------
 {

@@ -1,14 +1,11 @@
 // Model słuchawek Lumen Halo zbudowany w kodzie: geometria, materiały i tekstury rysowane w canvasie,
 // plus studio do odbić. Jedno źródło dla prototypu halo-3d.html i strony lumen.html.
-import * as THREE from 'three';
+// pełny adres zamiast „three”: wątek (halo-worker.js) nie widzi mapy importów strony; to ten sam plik, więc ten sam moduł
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js';
+import { knitData, vnoise } from './knit.js';
 
-// Kolory ze zdjęć produktu: pałąk i poduszki z tej samej dzianiny w odcieniu „mgły” (ciemniejszym od ceramiki),
-// wnętrze poduszki z szarej dzianiny
-export const PALETTES = [
-  { name: 'Kreda', cta: 'Wybierz Kredę', ceramic: '#efeeeb', band: '#a9a9ad', cushion: '#b3b3b6', metal: '#d0cdc8', inner: '#a4a4a6' },
-  { name: 'Piasek', cta: 'Wybierz Piasek', ceramic: '#e4dbce', band: '#c9b9a1', cushion: '#cfc0a9', metal: '#d8cdbb', inner: '#9a8d7b' },
-  { name: 'Grafit', cta: 'Wybierz Grafit', ceramic: '#4a4a4d', band: '#424246', cushion: '#46464a', metal: '#77777c', inner: '#2a2a2c' },
-];
+export { PALETTES } from './palettes.js';
+import { PALETTES } from './palettes.js';
 
 // Studio do odbić: szare tło i kilka softboksów, jak przy zdjęciach produktowych.
 // Kontrast jasnych pasów i ciemnego tła sprawia, że aluminium wygląda jak metal, a nie biały plastik.
@@ -42,8 +39,14 @@ export function studioEnv(renderer) {
 }
 
 // Zwraca grupę z modelem w jednostkach z pomiarów (1 j. ≈ 5 cm) i materiały, którymi zmienia się kolor.
-export function buildHalo(renderer) {
-  // Tekstury rysowane w canvasie, bez plików graficznych
+// knit: tekstury dzianiny z knitData(). Strona dzieli to na dwie części: geometrię i tekstury liczy osobny wątek
+// (halo-worker.js), a materiały powstają na głównym wątku (haloMaterials), bo potrzebują renderera.
+export function buildHalo(renderer, knit = knitData()) {
+  const M = haloMaterials(renderer, knit);
+  return { ...haloGeometry(M), M };
+}
+
+export function haloMaterials(renderer, knit = knitData()) {
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
   const canvasTex = (s, px, srgb) => {
     const cv = document.createElement('canvas'); cv.width = cv.height = s;
@@ -55,58 +58,19 @@ export function buildHalo(renderer) {
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     return t;
   };
-  const hash = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
-  // Dzianina melanżowa jak na zdjęciach: splot skośny 2/2, każda nitka w nieco innym odcieniu,
-  // a w nitce pojedyncze włókna, żeby z bliska powierzchnia nie była idealnie regularna
-  const TS = 512, TP = 8;
-  const weave = (x, y) => {
-    const i = (x / TP) | 0, j = (y / TP) | 0, fx = (x % TP + 0.5) / TP, fy = (y % TP + 0.5) / TP;
-    const up = ((i - j + 4000) % 4 < 2) !== (hash(i * 1.7, j * 2.3) < 0.12); // co ~8. przeplot odwrócony: splot mniej „graficzny”
-    const across = up ? fx : fy, along = up ? y : x, th = up ? i : j + 997;
-    const fiber = hash(th * 13.1 + across * 7.3, along * 0.37);
-    const h = Math.pow(Math.sin(Math.PI * across), 0.7) * (0.8 + 0.2 * fiber);
-    return { h, tone: 0.65 * hash(th, (along / (TP * 3)) | 0) + 0.35 * fiber };
-  };
-  // Melanż: plamki jaśniejszych i ciemniejszych włókien w skali kilku milimetrów (szum zawijany na brzegach kafla).
-  // Splot jest za drobny, żeby go widzieć z daleka; dopiero ten szum daje „ziarno” dzianiny jak na zdjęciach.
-  const vnoise = (x, y, per) => {
-    const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
-    const g = (a, b) => hash(((a % per) + per) % per, ((b % per) + per) % per);
-    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), lerp = THREE.MathUtils.lerp;
-    return lerp(lerp(g(xi, yi), g(xi + 1, yi), sx), lerp(g(xi, yi + 1), g(xi + 1, yi + 1), sx), sy);
-  };
-  const heather = new Float32Array(TS * TS);
-  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) {
-    let v = 0, a = 0.5, f = 40;
-    for (let o = 0; o < 4; o++, a *= 0.5, f *= 2) v += a * vnoise(x / TS * f, y / TS * f, f);
-    heather[y * TS + x] = v / 0.9375; // 0..1
-  }
-  const knitColor = (rx, ry) => {
-    const t = canvasTex(TS, (x, y) => { const w = weave(x, y), m = heather[y * TS + x]; return Math.min(1, 0.8 + 0.07 * w.tone + 0.05 * w.h + 0.12 * Math.pow(m, 1.6)); }, true);
-    t.repeat.set(rx, ry); return t;
-  };
-  // Mapa normalnych z wysokości splotu (zamiast bump mapy, bo normal mapa zapisuje się w pliku .glb)
-  const normalCanvas = (hf, K) => {
-    const hgt = new Float32Array(TS * TS);
-    for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) hgt[y * TS + x] = hf(x, y);
-    const h = (x, y) => hgt[((y + TS) % TS) * TS + (x + TS) % TS];
-    const cv = document.createElement('canvas'); cv.width = cv.height = TS;
-    const g = cv.getContext('2d'), img = g.createImageData(TS, TS), n = new THREE.Vector3();
-    for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) {
-      n.set((h(x - 1, y) - h(x + 1, y)) * K, (h(x, y + 1) - h(x, y - 1)) * K, 1).normalize();
-      const i = (y * TS + x) * 4;
-      img.data[i] = (n.x * 0.5 + 0.5) * 255; img.data[i + 1] = (n.y * 0.5 + 0.5) * 255; img.data[i + 2] = (n.z * 0.5 + 0.5) * 255; img.data[i + 3] = 255;
-    }
-    g.putImageData(img, 0, 0);
-    return cv;
-  };
-  const knitNormal = normalCanvas((x, y) => weave(x, y).h + 0.5 * heather[y * TS + x], 1); // grubsze nitki w plamach melanżu
-  const normalTex = (cv, rx, ry) => {
-    const t = new THREE.CanvasTexture(cv);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = maxAniso; t.repeat.set(rx, ry);
+  // jedna tekstura na obraz (jedno wysłanie do karty graficznej), kopie różnią się tylko powtórzeniem
+  const dataTex = (data, srgb) => {
+    const t = new THREE.DataTexture(data, knit.size, knit.size);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = maxAniso;
+    t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
     return t;
   };
-  const knitNormalTex = (rx, ry) => normalTex(knitNormal, rx, ry);
+  const knitC = dataTex(knit.color, true), knitN = dataTex(knit.normal, false);
+  const rep = (t, rx, ry) => { const c = t.clone(); c.repeat.set(rx, ry); return c; };
+  const knitColor = (rx, ry) => rep(knitC, rx, ry);
+  const knitNormalTex = (rx, ry) => rep(knitN, rx, ry);
   // Szczotkowane aluminium: drobne rysy wzdłuż obwodu (mapa chropowatości)
   const rows = Array.from({ length: 256 }, () => Math.random());
   const brushed = canvasTex(256, (x, y) => 0.8 + 0.12 * rows[y] + 0.08 * Math.random());
@@ -128,7 +92,11 @@ export function buildHalo(renderer) {
     // tkanina akustyczna w otworze poduszki: wyraźny splot, w półcieniu także gdy model jest obrócony otworem do światła
     inner: new THREE.MeshStandardMaterial({ color: P0.inner, map: knitColor(1, 1), normalMap: knitNormalTex(1, 1), normalScale: new THREE.Vector2(1.4, 1.4), vertexColors: true, roughness: 1, envMapIntensity: 0.5, side: THREE.DoubleSide }),
   };
+  return M;
+}
 
+// Geometria modelu; M to materiały (w wątku zastępcze, rozpoznawane po nazwie).
+export function haloGeometry(M) {
   const mesh = (geo, mat) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; return m; };
   const v2 = (pts) => pts.map(([r, h]) => new THREE.Vector2(r, h));
   // profile są zapisane od frontu w dół; odwrócenie kolejności kieruje ściany na zewnątrz
@@ -215,8 +183,9 @@ export function buildHalo(renderer) {
     const n = 0.65 * vnoise(x, 0.5, PLEATS) + 0.35 * vnoise(x * 2, 7.5, PLEATS * 2);
     return w * THREE.MathUtils.smoothstep(n, 0.35, 0.85);
   };
+  let cushionCache = null; // obie poduszki mają tę samą geometrię: liczona raz
   function cushionGeo() {
-    return bakeAO(gridGeo(CUSH_NU, CUSH_NV, (u, v, p) => {
+    return cushionCache ||= bakeAO(gridGeo(CUSH_NU, CUSH_NV, (u, v, p) => {
       const th = u * Math.PI * 2, ph = v * Math.PI * 2, c = Math.cos(th), s = Math.sin(th);
       const ri = holeR(c, s), k = (1 - 0.05 * seam(ph, 0.06)) * (1 + 0.01 * pleatAt(th, ph)); // płytki rowek szwu, ledwie widoczne fałdy (dzianina się nie marszczy jak skóra)
       const r = (ri + RC) / 2 + k * ((RC - ri) / 2) * se(Math.cos(ph), CUSH_N);
@@ -334,7 +303,7 @@ export function buildHalo(renderer) {
     foam: anchor(tilts[-1], CUSH + 0.005, -0.6, 0.38),               // poduszka lewej muszli od strony ucha
   };
 
-  return { halo, M, anchors };
+  return { halo, anchors };
 }
 
 // Skaluje model do zadanej wysokości i ustawia jego środek w (0, 0, 0) grupy-rodzica.
@@ -345,4 +314,43 @@ export function centerHalo(halo, height) {
   halo.scale.setScalar(s);
   halo.position.copy(box.getCenter(new THREE.Vector3())).multiplyScalar(-s);
   return s;
+}
+
+// Przekazanie modelu z wątku: drzewo obiektów (położenie, obrót, skala, nazwa materiału) i bufory geometrii.
+// Wspólne geometrie (np. obie poduszki) są przesyłane raz.
+export function packHalo({ halo, anchors }) {
+  Object.entries(anchors).forEach(([k, o]) => { o.name = 'anchor:' + k; });
+  const geos = [], gIdx = new Map(), buffers = [];
+  const node = (o) => {
+    const n = { t: o.isMesh ? 'M' : o.isGroup ? 'G' : 'O', n: o.name, p: o.position.toArray(), q: o.quaternion.toArray(), s: o.scale.toArray(), c: o.children.map(node) };
+    if (o.isMesh) {
+      if (!gIdx.has(o.geometry)) {
+        const g = o.geometry, attrs = {};
+        for (const [k, a] of Object.entries(g.attributes)) { const arr = a.array.slice(); attrs[k] = { a: arr, i: a.itemSize, n: a.normalized }; buffers.push(arr.buffer); }
+        let index = null; if (g.index) { index = g.index.array.slice(); buffers.push(index.buffer); }
+        gIdx.set(g, geos.length); geos.push({ attrs, index });
+      }
+      Object.assign(n, { g: gIdx.get(o.geometry), m: o.material.name, cs: o.castShadow, rs: o.receiveShadow });
+    }
+    return n;
+  };
+  return { msg: { tree: node(halo), geos }, buffers };
+}
+export function unpackHalo({ tree, geos }, M) {
+  const G = geos.map(({ attrs, index }) => {
+    const g = new THREE.BufferGeometry();
+    for (const [k, a] of Object.entries(attrs)) g.setAttribute(k, new THREE.BufferAttribute(a.a, a.i, a.n));
+    if (index) g.setIndex(new THREE.BufferAttribute(index, 1));
+    return g;
+  });
+  const anchors = {};
+  const build = (n) => {
+    const o = n.t === 'M' ? new THREE.Mesh(G[n.g], M[n.m]) : n.t === 'G' ? new THREE.Group() : new THREE.Object3D();
+    o.name = n.n; o.position.fromArray(n.p); o.quaternion.fromArray(n.q); o.scale.fromArray(n.s);
+    if (n.t === 'M') { o.castShadow = n.cs; o.receiveShadow = n.rs; }
+    if (n.n.startsWith('anchor:')) anchors[n.n.slice(7)] = o;
+    n.c.forEach((c) => o.add(build(c)));
+    return o;
+  };
+  return { halo: build(tree), anchors };
 }
