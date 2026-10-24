@@ -3,9 +3,8 @@
 // a model i tekstury liczy osobny wątek (halo-worker.js), więc przewijanie nie zacina się w trakcie wczytywania.
 // Stan (położenie, obrót, skala, przemiana w piórko) przychodzi z lumen.js; ten moduł tylko go rysuje.
 import * as THREE from 'three';
-import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
 import { PALETTES, studioEnv, haloMaterials, unpackHalo } from './halo-model.js';
-import { featherTexture, featherPoint, featherMesh } from './feather.js';
+import { featherTexture, featherMesh } from './feather.js';
 
 const { lerp, clamp, degToRad } = THREE.MathUtils;
 // krótka przerwa dla przeglądarki między kolejnymi kawałkami pracy, żeby żadne zadanie nie blokowało przewijania
@@ -65,132 +64,35 @@ export async function start(C) {
   }
   resize();
 
-  // ---------- Lekkość: słuchawki rozsypują się w drobinki, które składają się w piórko ----------
-  // Piórko to tekstura rysowana na płótnie 2D (stosina, chorągiewki, puch u nasady) na wygiętej powierzchni:
-  // łuk z obu końców, szczyt po prawej podwinięty, puch po lewej. Drobinki są losowane z powierzchni modelu
-  // i z tekstury piórka (tam, gdzie jest gęsta), więc lądują dokładnie na nim. Płaszczyzna tnąca „zjada” bryłę,
-  // drobinki lecą w kolejności od nasady do szczytu, a za nimi z tekstury wyłania się prawdziwe piórko.
-  const clipLocal = new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e3), clipWorld = new THREE.Plane(new THREE.Vector3(1, 0, 0), 1e3);
-  Object.values(M).forEach((m) => { m.clippingPlanes = [clipWorld]; });
-  const RUN = 1.6; // tempo fali: drobinka rusza, gdy uW · RUN minie jej miejsce na piórku (0 nasada, 1 szczyt)
-  let dust = null, feather = null, fMesh = null, fShadow = null, cutX = null, cutK = null;
-  const fRev = { value: 0 };
+  // ---------- Finał: słuchawki przechodzą w piórko (wariant A, „przenikanie”) ----------
+  // Słuchawki rozmywają się i znikają, a z rozmycia wyostrza się piórko (w miejscu słuchawek albo dopiero nad stopką).
+  // Rozmycie i krycie robi płótno (lumen.js); tutaj tylko: do połowy przemiany (rig.wave < 0,5) widać słuchawki, potem piórko.
+  // Piórko to tekstura rysowana na płótnie 2D (feather.js) na wygiętej powierzchni.
+  let feather = null, fMesh = null, featherStarted = false;
+  const fRev = { value: 9 }; // piórko odsłonięte w całości
 
   async function buildFeather() {
+    if (featherStarted) return;
+    featherStarted = true;
     const ft = await featherTexture(renderer);
     fMesh = featherMesh(ft, fRev);
-    // miękki cień pod piórkiem: unosi się w powietrzu, więc cień jest daleko i rozmyty
-    const sc = document.createElement('canvas'); sc.width = 256; sc.height = 64;
-    const sg = sc.getContext('2d'), rg = sg.createRadialGradient(128, 32, 0, 128, 32, 128);
-    rg.addColorStop(0, 'rgba(0,0,0,0.2)'); rg.addColorStop(0.45, 'rgba(0,0,0,0.08)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
-    sg.setTransform(1, 0, 0, 0.25, 0, 24); sg.fillStyle = rg; sg.fillRect(0, -96, 256, 256);
-    fShadow = new THREE.Mesh(new THREE.PlaneGeometry(FL * 0.62, FL * 0.13), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, toneMapped: false, opacity: 0 }));
-    fShadow.position.set(0.2, -2.1, -0.6);
     feather = new THREE.Group();
-    feather.add(fMesh, fShadow);
+    feather.add(fMesh);
     feather.visible = false;
     // układ piórka jest zgodny z kamerą: obrót znosi obrót słuchawek w ujęciu Lekkość
     const lp = C.P.lek();
     feather.quaternion.setFromEuler(new THREE.Euler(lp.rx, lp.ry, lp.rz, 'YXZ')).invert();
     feather.position.copy(L.mobile ? new THREE.Vector3(0, 0.15, 0.4) : new THREE.Vector3(0.25, 0.35, 0.4)).applyQuaternion(feather.quaternion);
-    feather.scale.setScalar(L.mobile ? 1.35 : 1); // na telefonie słuchawki są małe, a piórko ma wypełnić szerokość ekranu
+    feather.scale.setScalar(L.mobile ? 1.35 : 1);
     feather.updateMatrix();
     pivot.add(feather);
-    return ft;
-  }
-
-  let dustStarted = false;
-  async function buildDust() {
-    if (dustStarted) return;
-    dustStarted = true;
-    const ft = await buildFeather();
     await pause();
-    const N = L.mobile ? 28000 : 42000;
-    // drobinki losowane z modelu złożonego w położeniu zerowym; pętla rysuje między kawałkami pracy i przestawia model,
-    // więc ustawienie zerowe jest przywracane przed każdym kawałkiem
-    const zero = () => { pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); pivot.scale.setScalar(1); explode(0); pivot.updateMatrixWorld(true); };
-    const meshes = []; halo.traverse((o) => { if (o.isMesh) meshes.push(o); });
-    const A = new THREE.Vector3(), B = new THREE.Vector3(), Cc = new THREE.Vector3();
-    const areas = [];
-    for (const m of meshes) {
-      zero();
-      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, p = g.attributes.position; let a = 0;
-      for (let i = 0; i < p.count; i += 3) { A.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld); B.fromBufferAttribute(p, i + 1).applyMatrix4(m.matrixWorld); Cc.fromBufferAttribute(p, i + 2).applyMatrix4(m.matrixWorld); a += B.sub(A).cross(Cc.sub(A)).length() / 2; }
-      areas.push(a);
-      await pause();
-    }
-    const total = areas.reduce((s, a) => s + a, 0), hp = [], v = new THREE.Vector3();
-    for (const [k, m] of meshes.entries()) {
-      zero();
-      const s = new MeshSurfaceSampler(m).build(), n = Math.round(N * areas[k] / total);
-      for (let i = 0; i < n; i++) { s.sample(v); hp.push(v.clone().applyMatrix4(m.matrixWorld)); }
-      await pause();
-    }
-    // cele na piórku: punkty tekstury losowane proporcjonalnie do krycia, przeniesione na wygiętą powierzchnię
-    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const fe = [];
-    while (fe.length < hp.length) {
-      const x = rnd() * ft.W | 0, y = rnd() * ft.H | 0;
-      if (rnd() * 255 > ft.data[(y * ft.W + x) * 4 + 3]) continue;
-      const u = (x + 0.5) / ft.W;
-      fe.push({ u, p: featherPoint(u, 1 - (y + 0.5) / ft.H).applyMatrix4(feather.matrix) });
-      if (fe.length % 8000 === 0) await pause();
-    }
-    // pary: kolejność rozsypywania słuchawek (wzdłuż x) = kolejność składania piórka (od nasady do szczytu)
-    hp.sort((a, b) => a.x - b.x); fe.sort((a, b) => a.u - b.u);
-    const n = hp.length, start = new Float32Array(n * 3), end = new Float32Array(n * 3), k = new Float32Array(n), r3 = new Float32Array(n * 3);
-    cutX = new Float32Array(n); cutK = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      hp[i].toArray(start, i * 3); fe[i].p.toArray(end, i * 3);
-      k[i] = cutK[i] = fe[i].u; cutX[i] = hp[i].x;
-      r3[i * 3] = rnd() * 2 - 1; r3[i * 3 + 1] = rnd() * 2 - 1; r3[i * 3 + 2] = rnd() * 2 - 1;
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(start, 3));
-    g.setAttribute('aEnd', new THREE.BufferAttribute(end, 3));
-    g.setAttribute('aK', new THREE.BufferAttribute(k, 1));
-    g.setAttribute('aRnd', new THREE.BufferAttribute(r3, 3));
-    const mat = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false,
-      uniforms: { uW: { value: 0 }, uTime: { value: 0 }, uSize: { value: 17 }, uPR: { value: renderer.getPixelRatio() } },
-      vertexShader: `
-        uniform float uW, uTime, uSize, uPR;
-        attribute vec3 aEnd, aRnd; attribute float aK;
-        varying float vA; varying vec3 vC;
-        void main() {
-          float d = uW * ${RUN.toFixed(2)} - aK;      // ile czasu minęło od przejścia płaszczyzny
-          float e = smoothstep(0.0, 0.35, d);
-          float s = sin(3.14159 * e);
-          vec3 p = mix(position, aEnd, e) + aRnd * 0.26 * s + vec3(0.0, 0.32 * s, 0.0);
-          vec4 mv = modelViewMatrix * vec4(p, 1.0);
-          gl_Position = projectionMatrix * mv;
-          gl_PointSize = uSize * uPR / -mv.z;
-          vA = step(0.0, d) * (1.0 - smoothstep(0.32, 0.6, d)); // po wylądowaniu drobinka gaśnie, a w jej miejscu jest już piórko
-          // na białym tle Kontaktu drobinki są szare (jak w storyboardzie), część jaśniejsza, żeby chmura miała głębię
-          vC = aRnd.x > 0.35 ? vec3(0.62, 0.62, 0.66) : aRnd.x > -0.4 ? vec3(0.45, 0.45, 0.49) : vec3(0.82, 0.82, 0.85);
-        }`,
-      fragmentShader: `
-        varying float vA; varying vec3 vC;
-        void main() {
-          vec2 c = gl_PointCoord - 0.5;
-          float a = vA * 0.75 * (1.0 - smoothstep(0.12, 0.25, dot(c, c)));
-          if (a < 0.01) discard;
-          gl_FragColor = vec4(vC, a);
-        }`,
-    });
-    dust = new THREE.Points(g, mat);
-    dust.frustumCulled = false;
-    dust.visible = false;
-    pivot.add(dust);
-    await pause();
+    // shader piórka kompiluje się teraz, a nie przy jego pierwszym pojawieniu się
+    feather.visible = true;
+    try { await renderer.compileAsync(scene, camera); } catch (e) { /* kompilacja przy pierwszej klatce */ }
+    feather.visible = false;
     measureFeather();
     G.ready = true;
-  }
-  // położenie płaszczyzny tnącej: tuż za ostatnią drobinką, która już ruszyła (kolejność drobinek jest posortowana)
-  function cutAt(front) {
-    let lo = 0, hi = cutK.length;
-    while (lo < hi) { const m = (lo + hi) >> 1; if (cutK[m] < front) lo = m + 1; else hi = m; }
-    return lo === 0 ? -1e3 : lo >= cutX.length ? 1e3 : cutX[lo];
   }
   function measureFeather() {
     pivot.position.set(0, 0, 0); pivot.rotation.set(KON_R[0], KON_R[1], 0, 'YXZ'); pivot.scale.setScalar(1); pivot.updateMatrixWorld(true);
@@ -436,21 +338,13 @@ export async function start(C) {
       sun.intensity = lerp(light.i, mixStops(SUN_I, F.day), F.dayMix);
       scene.environmentIntensity = lerp(1, mixStops(ENV_I, F.day), F.dayMix);
     }
-    if (dust) {
-      dust.visible = rig.wave > 0.0005;
-      dust.material.uniforms.uW.value = rig.wave;
-      dust.material.uniforms.uTime.value = t;
-      const cut = rig.wave > 0.0005 ? cutAt(rig.wave * RUN) : -1e3;
-      clipLocal.set(new THREE.Vector3(1, 0, 0), -cut);
-      feather.visible = dust.visible;
-      fRev.value = rig.wave * RUN;
-      // gotowe piórko unosi się i lekko kołysze; zaczyna dopiero, gdy drobinki już zgasły, żeby się z nimi nie rozjechało
-      const k = C.reduce ? 0 : smooth((rig.wave - 0.95) / 0.05);
+    if (feather) {
+      const on = rig.wave >= 0.5;
+      halo.visible = !on; feather.visible = on;
+      // gotowe piórko unosi się i lekko kołysze
+      const k = C.reduce ? 0 : 1;
       fMesh.rotation.set(Math.sin(t * 0.6) * 0.05 * k, Math.sin(t * 0.45) * 0.08 * k, Math.sin(t * 0.7 + 1) * 0.04 * k);
       fMesh.position.y = Math.sin(t * 0.8) * 0.09 * k;
-      fShadow.visible = false;
-      pivot.updateMatrixWorld(true);
-      clipWorld.copy(clipLocal).applyMatrix4(pivot.matrixWorld);
     }
     // płótno niewidoczne (np. na pierwszym ekranie): bez rysowania, karta graficzna odpoczywa
     if (F.opacity < 0.002 && F.lpA < 0.002 && lpA < 0.002) return;
@@ -477,6 +371,6 @@ export async function start(C) {
     return { x0: Math.round(x0), x1: Math.round(x1), y0: Math.round(y0), y1: Math.round(y1), op: +canvas.style.opacity, feather: fe, e: lastE.toFixed(2), wave: rig.wave.toFixed(2) };
   }
 
-  const G = { ready: false, featherOff: null, featherScale: 1, resize, measure: placeLoupes, frame, buildDust, box, get dust() { return dust; } };
+  const G = { ready: false, featherOff: null, featherScale: 1, resize, measure: placeLoupes, frame, buildDust: buildFeather, box, get dust() { return feather; } };
   return G;
 }

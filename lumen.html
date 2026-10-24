@@ -95,7 +95,12 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .nav-light:not(.menu-open) .logo, .nav-light:not(.menu-open) .bag, .nav-light:not(.menu-open) .burger { color: #f5f5f7; }
 .nav-light:not(.menu-open) .logo i { filter: invert(1); }
 .nav .btn { height: 33px; padding: 0 16px; font-size: 13px; }
-@media (max-width: 960px) { .menu { display: none; } .burger { display: flex; } }
+@media (max-width: 960px) {
+  .menu { display: none; } .burger { display: flex; }
+  /* telefon i tablet: menu stoi cały czas, z tłem w kolorze sekcji (nad zdjęciem Startu przezroczyste), więc treść
+     przewijana między sekcjami chowa się pod nim i nie nachodzi na logo */
+  .nav { background-color: var(--nav-bg, transparent); transition: background-color .3s; }
+}
 @media (min-width: 961px) { .mmenu { display: none; } }
 @media (max-width: 1099px) { :root { --pad: 40px; } }
 @media (max-width: 560px) { :root { --pad: 20px; } }
@@ -337,21 +342,21 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .day-foot { margin-top: 24px; }
   .battery { flex-direction: row; align-items: center; gap: 16px; }
   .cell { width: 140px; }
-  /* Dane: pięć najważniejszych wierszy, reszta w arkuszu */
-  #dane { padding-top: 96px; }
+  /* Dane: pięć najważniejszych wierszy, reszta w arkuszu; odnośnik z zapasem nad dolną krawędzią */
+  #dane { padding-top: 96px; padding-bottom: 64px; }
   .spec { display: block; }
   .spec .opt-row { display: none; }
   .sheet .spec .opt-row { display: flex; }
   .spec-more { display: block; align-self: flex-start; margin-top: 16px; padding: 0; border: 0; background: none; font: 500 13px var(--font); color: var(--ink); cursor: pointer; }
   /* Kontakt: nagłówek niżej (obok modelu), krótszy opis, pola jedno pod drugim, zgoda jako notka pod przyciskiem */
-  #kontakt { padding-top: 110px; }
-  .kon-lane { top: 84px; width: 128px; height: 128px; }
+  /* Kontakt na jednym ekranie: bez wyboru tematu (zostaje odsłuch), imię i e-mail obok siebie */
+  #kontakt { padding-top: 96px; padding-bottom: 24px; }
+  .kon-lane { top: 84px; width: 118px; height: 118px; }
   .kon-copy .lead { font-size: 15px; }
   .kform { margin-top: 24px; gap: 16px; }
-  .seg { align-self: stretch; }
-  .seg button { flex: 1; }
-  .frow { grid-template-columns: 1fr; gap: 16px; }
-  .fld textarea { height: 100px; }
+  .seg { display: none; }
+  .frow { gap: 12px; }
+  .fld textarea { height: 88px; }
   .consent, .send small { display: none; }
   .send .btn { width: 100%; }
   .kon-note { display: block; margin: -4px 0 0; font-size: 12px; }
@@ -369,6 +374,9 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 @media (max-width: 560px) and (max-height: 740px) {
   #konfiguracja { gap: 24px; padding-bottom: calc(var(--bar-h) + 16px); }
   .day { padding-top: 84px; padding-bottom: 24px; }
+  /* Dane: cztery wiersze (reszta w arkuszu „Wszystkie dane”), model w pozostałym miejscu, odnośnik nad dolną krawędzią */
+  #spec > div:nth-child(7) { display: none; } /* tylko na stronie, w arkuszu są wszystkie */
+  .dane-lane { min-height: 0; }
   .clock b { font-size: 40px; }
   .track { margin-top: 8px; }
   .day-foot { margin-top: 16px; }

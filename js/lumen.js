@@ -121,9 +121,12 @@ function setLight(a, photo) {
 // e: postęp wejścia 0–1. Słuchawki przechodzą z rozmycia do ostrości i lekko dokręcają do pierwszego ujęcia.
 let lastBlur = '';
 function setEntrance(e) {
-  const blur = e < 1 ? `blur(${(28 * (1 - smooth(e)) ** 1.5).toFixed(1)}px)` : '';
+  return { blur: e < 1 ? 28 * (1 - smooth(e)) ** 1.5 : 0, a: smooth(seg(e, 0, 0.6)), turn: -0.35 * (1 - io(e)) }; // start jak dotąd (ry −0,8), potem obrót do środka, do pierwszej cechy
+}
+// rozmycie płótna: wejście słuchawek w Designie albo przenikanie słuchawki → piórko w finale (to większe)
+function setBlur(px) {
+  const blur = px > 0.05 ? `blur(${px.toFixed(1)}px)` : '';
   if (blur !== lastBlur) { canvas.style.filter = blur; lastBlur = blur; }
-  return { a: smooth(seg(e, 0, 0.6)), turn: -0.35 * (1 - io(e)) }; // start jak dotąd (ry −0,8), potem obrót do środka, do pierwszej cechy
 }
 
 // ---------- Stan zależny od miejsca na stronie ----------
@@ -171,8 +174,13 @@ function landSpot() {
   let w = innerWidth * (!L.mobile ? 0.34 : innerWidth <= 560 ? 0.52 : 0.42);
   // niskie ekrany: piórko (wysokie na ok. 0,45 szerokości) mieści się między odnośnikami stopki a napisem, z zapasem 16 px
   const room = r.top - footTopEl.getBoundingClientRect().bottom; // wolny pas między odnośnikami (z e-mailem) a napisem
-  if (!L.mobile) w = Math.min(w, (room - 16) / 0.45);
-  return { x: r.left, y: r.top - G.featherOff.h * w, w, room };
+  if (!L.mobile) w = Math.min(w, (room - 16) / 0.55); // 0,45 wysokości piórka + zapas na kołysanie w locie
+  let x = r.left;
+  if (!L.mobile) { // komputer: na osi szczeliny między odnośnikami a e-mailem (tędy opada), na szczytach liter napisu
+    const fc = footColsEl.getBoundingClientRect(), fm = footMailEl.getBoundingClientRect(), h = wmEl.getBoundingClientRect();
+    x = clamp((fc.right + fm.left) / 2, h.left + w * 0.5, h.right - w * 0.5);
+  }
+  return { x, y: r.top - G.featherOff.h * w, w, room };
 }
 // piórko, które właśnie powstało w miejscu modelu w Kontakcie (komputer: w lewej kolumnie)
 function laneSpot() {
@@ -182,9 +190,14 @@ function laneSpot() {
   return { x: L.mobile ? Math.min(r.right - w * 0.5, innerWidth - w * 0.55) : r.left + r.width / 2, y: r.top + r.height / 2, w };
 }
 const lanePose = () => { const l = laneSpot(); return featherAt(l.x, l.y, l.w); };
-// pusty pas między dołem formularza Kontaktu a odnośnikami stopki: tędy piórko przechodzi w bok (komputer)
-const kformEl = $('#kform'), footTopEl = $('.foot-top'), footColsEl = $('.foot-cols'), footMailEl = $('.foot-mail');
-const band = () => { const a = kformEl.getBoundingClientRect().bottom, b = footTopEl.getBoundingClientRect().top; return { y: (a + b) / 2, h: b - a }; };
+const footTopEl = $('.foot-top'), footColsEl = $('.foot-cols'), footMailEl = $('.foot-mail'), wmEl = $('.wm');
+// trasa piórka: telefon, tablet i ekrany, na których szczelina między odnośnikami a e-mailem stopki jest węższa od piórka,
+// dostają piórko dopiero nad stopką (wlatuje z prawej); komputer: piórko powstaje w Kontakcie i opada
+function featherSide() {
+  if (L.mobile) return true;
+  const fc = footColsEl.getBoundingClientRect(), fm = footMailEl.getBoundingClientRect();
+  return fm.left - fc.right - 32 < landSpot().w * 1.15;
+}
 const featherReady = () => G && G.dust && G.featherOff;
 
 function scrollState(y) {
@@ -275,52 +288,44 @@ function scrollState(y) {
   }
   else if (y <= B.cE) {
     // Kontakt (przypięty): słuchawki jeszcze chwilę zostają na swoim miejscu i przy przewijaniu kołyszą się w lewo
-    // i w prawo, a potem w tym samym miejscu rozsypują się w szare drobinki, które składają się w piórko.
+    // i w prawo, a potem rozmywają się i znikają (przenikanie). Komputer: w tym samym miejscu z rozmycia wyostrza się
+    // piórko. Telefon, tablet i węższe ekrany: piórko pojawi się dopiero nad stopką (mniej miejsca, mniejsze ryzyko).
     const p = seg(y, B.cS, B.cE), sw = Math.sin(seg(p, 0, 0.5) * Math.PI * 2);
     const k = { ...POSES.kon, ry: POSES.kon.ry + 0.32 * sw, rz: -0.06 * sw };
     S.dane = 1; S.bg = 'ffffff';
     if (!featherReady()) { S.pose = k; return S; } // piórko jeszcze się liczy: słuchawki zostają
-    S.wave = smooth(seg(p, 0.5, 1));
-    S.pose = mixPose(k, lanePose(), S.wave);
-    // tło przechodzi w ciepłą szarość stopki, gdy powstaje piórko: białe piórko jest na niej dobrze widoczne
+    S.wave = featherSide() ? 0.5 * smooth(seg(p, 0.5, 0.9)) : smooth(seg(p, 0.5, 1));
+    S.pose = S.wave < 0.5 ? k : lanePose(); // zamiana w chwili, gdy płótno jest całkiem przezroczyste
+    // tło przechodzi w ciepłą szarość stopki: białe piórko jest na niej dobrze widoczne
     S.bg = mixCol('#ffffff', ANAT_BG, smooth(seg(p, 0.55, 0.95)));
   }
   else {
-    // Kontakt → stopka: piórko jedzie w górę razem z Kontaktem, a gdy wjeżdża stopka, odrywa się i z kołysaniem
-    // opada na napis „Lumen Halo”. Najpierw w bok, potem w dół, przez pusty środek stopki.
-    const t = seg(y, B.cE, B.end), T0 = 0.45;
+    // Kontakt → stopka: piórko opada na napis „Lumen Halo” i lekko się kołysze.
+    const t = seg(y, B.cE, B.end);
     S.dane = 1;
     if (!featherReady()) { S.pose = ride(POSES.kon, y - B.cE); S.vis = 1 - smooth(seg(t, 0.05, 0.3)); S.bg = mixCol('#ffffff', ANAT_BG, smooth(seg(t, 0.35, 0.8))); return S; }
-    S.wave = 1; S.bg = ANAT_BG.slice(1);
-    if (t < T0) S.pose = lanePose(); // lanePose liczy się z położenia sekcji, więc piórko jedzie z nią
-    else {
-      // Komputer: w dół pustą lewą kolumną do pasa między formularzem a stopką, w bok wzdłuż pasa, na końcu na napis.
-      // Tablet, telefon: pas jest za wąski, więc piórko wyjeżdża z Kontaktem w górę, a potem wlatuje z prawej
-      // między odnośniki a napis. Przez cały czas lekko się kołysze.
-      const f = seg(t, T0, 1), l = laneSpot(), d = landSpot();
-      // komputer: piórko schodzi do napisu przez szczelinę między odnośnikami a e-mailem stopki; gdy szczelina jest węższa
-      // od piórka (węższe ekrany), wlatuje z prawej do wolnego pasa nad napisem, jak na telefonie
-      const fc = footColsEl.getBoundingClientRect(), fm = footMailEl.getBoundingClientRect();
-      const side = L.mobile || fm.left - fc.right - 32 < d.w * 1.15;
-      let x, yy, w;
-      if (!side) {
-        // w pasie piórko jest niższe od pasa (wysokość piórka to ok. 0,44 szerokości, z zapasem ok. 36 px nad i pod, bo piórko się kołysze)
-        const bd = band(), wb = clamp((bd.h - 72) / 0.44, 160, l.w), f1 = io(seg(f, 0, 0.3)), f2 = io(seg(f, 0.3, 0.72)), f3 = smooth(seg(f, 0.72, 1));
-        x = lerp(l.x, d.x, f2); yy = lerp(lerp(l.y, bd.y, f1), d.y, f3); w = lerp(lerp(l.w, wb, f1), d.w, f3);
-        S.top = f > 0.3;
-      } else {
-        // wlatuje z prawego górnego rogu wolnego pasa nad napisem i opada na litery, kołysząc się (pas jest wyższy od piórka,
-        // a piórko wchodzi na szerokość tekstu dopiero na dole pasa, więc nie przechodzi przez e-mail ani odnośniki)
-        const g = seg(f, 0.4, 1);
-        if (f < 0.4) { x = l.x; yy = l.y; w = l.w; }
-        else { x = lerp(innerWidth + d.w * 0.6, d.x, 1 - (1 - g) ** 1.6); yy = d.y - d.w * clamp((d.room - 16) / d.w - 0.45, 0, 0.14) * (1 - smooth(g)); w = d.w; } // opada tyle, na ile pozwala pas
-        S.top = f >= 0.4;
-      }
-      const k = 1 - smooth(seg(f, 0.8, 1));
-      S.pose = featherAt(x + Math.sin(f * Math.PI * 3) * 0.04 * w * k, yy, w);
-      S.pose.rz = Math.sin(f * Math.PI * 3 + 0.6) * 0.18 * k;
-      S.land = smooth(seg(f, 0.88, 1));
+    S.bg = ANAT_BG.slice(1);
+    const d = landSpot();
+    let x, yy, w, f;
+    if (!featherSide()) {
+      // Komputer: piórko odrywa się od Kontaktu i opada, przechodząc pod polami formularza, do szczeliny między odnośnikami
+      // a e-mailem stopki (lądowanie jest na jej osi), a nią na litery. Rośnie przy tym do pełnej szerokości.
+      const l = laneSpot();
+      f = t; S.wave = 1;
+      x = lerp(l.x, d.x, io(seg(t, 0.05, 0.6))); yy = lerp(l.y, d.y, smooth(seg(t, 0.08, 1))); w = lerp(l.w, d.w, smooth(seg(t, 0.2, 0.9)));
+      S.top = t > 0.88; // nad napisem (płótno nad treścią) dopiero przy lądowaniu
+    } else {
+      // Telefon, tablet, węższe ekrany: słuchawek już nie ma; gdy wjeżdża stopka, piórko wlatuje z prawej do wolnego pasa
+      // nad napisem, wyostrzając się z rozmycia, i opada na litery (tyle, na ile pozwala pas)
+      f = seg(t, 0.4, 1);
+      S.wave = 0.5 + 0.5 * smooth(seg(t, 0.4, 0.68));
+      x = lerp(innerWidth + d.w * 0.6, d.x, 1 - (1 - f) ** 1.6); yy = d.y - d.w * clamp((d.room - 16) / d.w - 0.45, 0, 0.14) * (1 - smooth(f)); w = d.w;
+      S.top = t >= 0.4;
     }
+    const k = 1 - smooth(seg(f, 0.8, 1));
+    S.pose = featherAt(x + Math.sin(f * Math.PI * 3) * 0.04 * w * k, yy, w);
+    S.pose.rz = Math.sin(f * Math.PI * 3 + 0.6) * 0.18 * k;
+    S.land = smooth(seg(t, 0.9, 1));
   }
   return S;
 }
@@ -353,6 +358,7 @@ function setDay(h, bg) {
 }
 
 // ---------- Pętla ----------
+const navEl = $('#nav'); let lastNavBg = '';
 let lastBg = '', lastHead = '', lastTime = 0, lastOpacity = -1;
 const navLinks = $$('.menu a, .mmenu nav a'), NAV_SECT = ['#start', '#design', '#konfiguracja', '#uzytkowanie', '#dane', '#kontakt']; let navOn = -1;
 const footEl = $('#stopka'); let lastTop = false, lastLand = -1;
@@ -394,6 +400,8 @@ function frame(time) {
     lastHead = head;
   }
   if (S.clock != null) setDay(S.clock, S.bg);
+  const navBg = S.photo > 0.05 ? 'transparent' : '#' + S.bg;
+  if (navBg !== lastNavBg) { navEl.style.setProperty('--nav-bg', navBg); lastNavBg = navBg; } // tło stałego menu (telefon, tablet)
   if (S.bg !== lastBg) {
     backdrop.style.backgroundColor = '#' + S.bg; lastBg = S.bg;
     // na ciemnym tle (wieczór w Użytkowaniu) logo, koszyk i ikona menu są jasne
@@ -407,7 +415,10 @@ function frame(time) {
   // menu: bieżąca sekcja, gdy jej góra minie 55% wysokości ekranu
   const h = innerHeight, on = [0, B.dS, B.kS, B.yS, B.nS, B.cS].filter((s) => y >= s - 0.55 * h).length - 1;
   if (on !== navOn) { navLinks.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === NAV_SECT[on])); navOn = on; }
-  const opacity = rig.alpha * rig.vis * appear.v * rig.ent;
+  // przenikanie w finale (wariant A): do połowy słuchawki rozmywają się i gasną, potem piórko wyostrza się z rozmycia
+  const wv = rig.wave, xo = smooth(seg(wv, 0, 0.5)), xi = smooth(seg(wv, 0.5, 1));
+  setBlur(Math.max(ent.blur, wv > 0 ? 16 * (wv < 0.5 ? xo : 1 - xi) : 0));
+  const opacity = rig.alpha * rig.vis * appear.v * rig.ent * (wv < 0.5 ? 1 - xo : xi);
   if (Math.abs(opacity - lastOpacity) > 0.0005) { canvas.style.opacity = opacity; lastOpacity = opacity; }
   if (!G) return;
   // piórko liczy się w tle, gdy czytelnik dojdzie do Użytkowania (albo po kilku sekundach bezczynności)
@@ -523,8 +534,10 @@ mmenu.inert = true;
 
 // ---------- Płynne przewijanie i odnośniki ----------
 let lenis = null;
-if (touch) ScrollTrigger.normalizeScroll(true);
-else if (!reduce) {
+// bez Lenisa (ekran dotykowy albo ograniczony ruch) przewijanie i tak przejmuje skrypt, ale bez wygładzania:
+// sekcje, napisy i model zmieniają się w tej samej klatce, więc nic nie skacze
+if (touch || reduce) ScrollTrigger.normalizeScroll(true);
+else {
   lenis = new Lenis({ lerp: 0.09 });
   lenis.on('scroll', ScrollTrigger.update);
   gsap.ticker.add((t) => lenis.raf(t * 1000));
@@ -569,8 +582,10 @@ else {
   if (document.readyState === 'complete') later(); else addEventListener('load', later, { once: true });
 }
 
-// diagnostyka (tylko z ?debug w adresie): test ciągłości ujęć i odstępów modelu od tekstu
-if (location.search.includes('debug')) { window.__lumen = { scrollState, B, rig, L, get G() { return G; }, halfH, halfW, MODEL_H }; window.__box = () => G.box(); }
+// diagnostyka (tylko z ?debug albo ?sprawdz w adresie): test ciągłości ujęć i odstępów modelu od tekstu
+if (/debug|sprawdz/.test(location.search)) { window.__lumen = { scrollState, B, rig, L, get G() { return G; }, halfH, halfW, MODEL_H }; window.__box = () => G.box(); }
+// ?sprawdz: odstęp modelu od tekstu, rozmiar okna i klatki na sekundę w rogu ekranu (js/sprawdz.js)
+if (location.search.includes('sprawdz')) import('./sprawdz.js');
 
 // ---------- Dane (telefon): wszystkie wiersze w arkuszu od dołu ----------
 {
@@ -591,10 +606,11 @@ if (location.search.includes('debug')) { window.__lumen = { scrollState, B, rig,
 
 // menu chowa się przy przewijaniu w dół i wraca przy przewijaniu w górę (na samej górze strony jest zawsze widoczne)
 {
-  const nav = $('#nav'); let lastY = scrollY;
+  // telefon i tablet: menu zostaje cały czas (miejsce na nie i tak jest zarezerwowane w każdej sekcji)
+  const nav = $('#nav'), navFixed = matchMedia('(max-width: 960px)'); let lastY = scrollY;
   addEventListener('scroll', () => {
     const y = scrollY, d = y - lastY;
-    if (y < 80 || document.documentElement.classList.contains('menu-open')) nav.classList.remove('hide');
+    if (y < 80 || document.documentElement.classList.contains('menu-open') || navFixed.matches) nav.classList.remove('hide');
     else if (d > 6) nav.classList.add('hide');
     else if (d < -6) nav.classList.remove('hide');
     if (Math.abs(d) > 6 || y < 80) lastY = y;
