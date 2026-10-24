@@ -47,7 +47,7 @@ button { font: inherit; color: inherit; }
 .photo { position: fixed; inset: 0; z-index: 0; background: #efebe5 url(img/hero.jpg) 50% 50% / cover no-repeat; }
 .light { position: fixed; left: 50%; top: -6vh; width: min(70vw, 900px); height: 96vh; transform: translateX(-50%); z-index: 0; pointer-events: none; visibility: hidden; opacity: 0; filter: blur(48px); -webkit-mask-image: linear-gradient(#000 20%, transparent); mask-image: linear-gradient(#000 20%, transparent); }
 .light i { position: absolute; inset: 0; background: #fffefb; clip-path: polygon(44% 0, 56% 0, 71% 100%, 29% 100%); }
-#stage { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100lvh; z-index: 1; pointer-events: none; opacity: 0; }
+#stage { position: fixed; left: 0; top: 0; z-index: 1; pointer-events: none; opacity: 0; }
 .lines { position: fixed; inset: 0; z-index: 3; pointer-events: none; width: 100vw; height: 100vh; }
 main { position: relative; z-index: 2; }
 section { position: relative; min-height: 100vh; min-height: 100svh; }
@@ -135,7 +135,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .spin-area { align-self: stretch; position: relative; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .spin-area:active { cursor: grabbing; }
 /* na białym tle: miękki szary cień pod unoszącym się modelem, żeby jasne słuchawki nie zlewały się z tłem */
-.spin-area::before { content: ""; position: absolute; left: 18%; right: 18%; bottom: 7%; height: 9%; background: radial-gradient(closest-side, rgba(0, 0, 0, .1), transparent); pointer-events: none; }
+.spin-area::before { content: ""; position: absolute; left: 18%; right: 18%; top: var(--sh-y, 86%); height: 9%; transform: translateY(-50%); background: radial-gradient(closest-side, rgba(0, 0, 0, .1), transparent); pointer-events: none; }
 .spin-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--faint); white-space: nowrap; }
 .config { display: flex; flex-direction: column; }
 .cfg-head { display: flex; flex-direction: column; gap: 12px; }
@@ -300,6 +300,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .facts { display: none; }
   /* Dane: tytuł, pod nim model, na dole wiersze w dwóch kolumnach */
   #dane { display: flex; flex-direction: column; padding-bottom: 40px; }
+  .dane-head { order: -1; } /* Figma: tytuł, pod nim model, na dole wiersze */
   .dane-lane { flex: 1; min-height: 160px; margin: 8px 0; }
   .spec { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
   .spec > div { padding: 12px 0; }
@@ -328,6 +329,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .day { padding-top: 96px; }
   .day .h2, .dane-head .h2, .kon-copy .h2 { font-size: 32px; }
   .clock { flex-direction: column-reverse; align-items: flex-start; gap: 4px; }
+  .clock span { min-height: 2.6em; display: flex; align-items: flex-end; } /* miejsce na dwie linie: model nad opisem nie zależy od długości tekstu */
   .clock b { font-size: 48px; }
   .clock span { font-size: 15px; }
   .track { margin-top: 16px; }
@@ -360,11 +362,16 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .wm { font-size: calc((100vw - 40px) * .34); }
   .wm span, .wm b { display: block; }
   .wm .land { left: 55%; }
+  .foot-top { margin-bottom: calc(28vw + 32px); } /* wolny pas nad napisem: tędy opada piórko (ok. 0,23 szerokości ekranu wysokie) */
   .wm .fsh { left: 30%; width: 50%; }
 }
-/* niskie telefony (np. 375 × 667): mniejsze odstępy, żeby model był duży */
+/* niskie telefony (np. 360 × 650 z paskiem adresu): mniejsze odstępy i zegar, żeby model miał miejsce */
 @media (max-width: 560px) and (max-height: 740px) {
   #konfiguracja { gap: 24px; padding-bottom: calc(var(--bar-h) + 16px); }
+  .day { padding-top: 84px; padding-bottom: 24px; }
+  .clock b { font-size: 40px; }
+  .track { margin-top: 8px; }
+  .day-foot { margin-top: 16px; }
 }
 /* tablet pionowo: większy nagłówek, tekst wyżej nad słuchawkami */
 @media (min-width: 561px) and (max-aspect-ratio: 5/6) {

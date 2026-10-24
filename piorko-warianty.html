@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piórko — warianty przemiany</title>
+<meta name="description" content="Porównanie wariantów przemiany słuchawek Lumen Halo w piórko.">
+<link rel="icon" href="data:,">
+<style>
+@font-face { font-family: 'Geist'; font-weight: 100 900; font-display: swap; src: url(fonts/geist-latin.woff2) format('woff2'); }
+@font-face { font-family: 'Geist'; font-weight: 100 900; font-display: swap; src: url(fonts/geist-latin-ext.woff2) format('woff2'); unicode-range: U+0100-02BA, U+1E00-1EFF; }
+:root { --ink: #1d1d1f; --muted: #5f5f64; --bg: #e9e8e5; --pad: 24px; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: 'Geist', system-ui, sans-serif; color: var(--ink); background: var(--bg); transition: background .4s; -webkit-font-smoothing: antialiased; }
+body.white { --bg: #ffffff; }
+header { padding: 32px var(--pad) 0; max-width: 1100px; margin: 0 auto; }
+h1 { margin: 0; font-size: clamp(28px, 4vw, 44px); font-weight: 600; letter-spacing: -0.03em; }
+header p { margin: 8px 0 0; color: var(--muted); font-size: 15px; max-width: 70ch; line-height: 1.5; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.tabs button, .ctl button { font: 500 14px/1 'Geist', sans-serif; padding: 12px 16px; border-radius: 999px; border: 0; background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1px #d2d2d7; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: #fff; box-shadow: none; }
+.stage { position: relative; height: min(62vh, 620px); margin: 8px 0 0; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ctl { display: flex; align-items: center; gap: 16px; padding: 0 var(--pad); max-width: 1100px; margin: 0 auto; }
+.ctl input { flex: 1; accent-color: var(--ink); }
+.ctl output { font: 500 14px 'Geist', sans-serif; font-variant-numeric: tabular-nums; width: 44px; text-align: right; color: var(--muted); }
+#desc { max-width: 1100px; margin: 16px auto 48px; padding: 0 var(--pad); font-size: 15px; line-height: 1.55; color: var(--muted); }
+#desc b { color: var(--ink); font-weight: 600; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<header>
+  <h1>Przemiana w piórko — warianty</h1>
+  <p>Ten sam model i to samo piórko co na stronie, w miejscu z Kontaktu. Przełącz wariant, przeciągnij suwak albo zostaw odtwarzanie. Na stronie postęp przemiany idzie za przewijaniem.</p>
+  <div class="tabs" role="group" aria-label="Wariant">
+    <button data-v="A" aria-pressed="true">A · Przenikanie</button>
+    <button data-v="B" aria-pressed="false">B · Rozpuszczanie w światło</button>
+    <button data-v="C" aria-pressed="false">C · Mgiełka</button>
+    <button data-v="D" aria-pressed="false">D · Smuga</button>
+    <button data-v="E" aria-pressed="false">E · Rozpuszczanie z pyłem</button>
+    <button data-v="0" aria-pressed="false">Obecny (kropki)</button>
+  </div>
+</header>
+<div class="stage"><canvas id="a" aria-hidden="true"></canvas><canvas id="b" aria-hidden="true"></canvas></div>
+<div class="ctl">
+  <button id="play" type="button">Pauza</button>
+  <input id="p" type="range" min="0" max="1000" value="0" aria-label="Postęp przemiany">
+  <output id="pv">0%</output>
+  <button id="bg" type="button">Tło: białe</button>
+</div>
+<p id="desc"></p>
+
+<script type="module">
+import * as THREE from 'three';
+import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
+import { studioEnv, haloMaterials, unpackHalo } from './js/halo-model.js';
+import { featherTexture, featherMesh, featherPoint } from './js/feather.js';
+
+const { lerp, clamp } = THREE.MathUtils;
+const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+const seg = (y, a, b) => clamp((y - a) / (b - a), 0, 1);
+const KON_R = [0.08, -0.75], MODEL_H = 3.65, RUN = 1.6;
+const DESC = {
+  A: '<b>Przenikanie.</b> Słuchawki rozmywają się i bledną, a w tym samym miejscu z rozmycia wyostrza się piórko. Najspokojniejsze i najtańsze w działaniu (zwykłe rozmycie obrazu), dobre na słabszych telefonach.',
+  B: '<b>Rozpuszczanie w światło.</b> Słuchawki znikają od lewej do prawej miękką, nieregularną krawędzią, która na moment rozjaśnia się do białego, a za nią w tej samej kolejności odsłania się piórko. Bez drobinek, ciągła linia przemiany.',
+  C: '<b>Mgiełka.</b> Jak obecnie, ale z bardzo drobnego, półprzezroczystego pyłu (trzy razy więcej, pięć razy mniejszego): z daleka wygląda jak para, a nie kropki.',
+  D: '<b>Smuga.</b> Słuchawki spłaszczają się w poziomą, jasną smugę światła, z której rozwija się piórko. Prosty, graficzny ruch, dobrze czytelny także w małym miejscu na telefonie.',
+  E: '<b>Rozpuszczanie z pyłem.</b> Wariant B z odrobiną drobnego pyłu odrywającego się od krawędzi: przemiana jest wyraźniej „materialna”, ale bez gęstej chmury kropek.',
+  0: '<b>Obecny.</b> Dla porównania: słuchawki rozsypują się w szare kropki, które składają się w piórko.',
+};
+
+// ---------- Scena główna (model, piórko, drobinki) i druga warstwa dla wariantu A (samo piórko, rozmywane osobno) ----------
+const cA = document.getElementById('a'), cB = document.getElementById('b');
+const rA = new THREE.WebGLRenderer({ canvas: cA, antialias: true, alpha: true });
+const rB = new THREE.WebGLRenderer({ canvas: cB, antialias: true, alpha: true });
+for (const r of [rA, rB]) { r.toneMapping = THREE.NeutralToneMapping; r.toneMappingExposure = 1.05; r.outputColorSpace = THREE.SRGBColorSpace; r.setPixelRatio(Math.min(devicePixelRatio, 2)); }
+rA.shadowMap.enabled = true; rA.shadowMap.type = THREE.VSMShadowMap;
+const scene = new THREE.Scene(), sceneB = new THREE.Scene();
+scene.environment = studioEnv(rA);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+camera.position.set(0, 0.6, 13); camera.lookAt(0, 0, 0);
+const sun = new THREE.DirectionalLight(0xfffaf2, 1.4); sun.position.set(1.5, 9, 3.5); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024); sun.shadow.radius = 28; sun.shadow.blurSamples = 32; Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 24 }); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.02;
+scene.add(sun, new THREE.HemisphereLight(0xffffff, 0xd8d4cc, 0.2));
+sceneB.add(new THREE.HemisphereLight(0xffffff, 0xd8d4cc, 1.6));
+
+const worker = new Worker('./js/halo-worker.js', { type: 'module' });
+const data = await new Promise((res) => { worker.onmessage = (e) => res(e.data); worker.postMessage({ height: MODEL_H }); });
+const M = haloMaterials(rA, data.knit);
+const { halo } = unpackHalo(data.model, M);
+const pivot = new THREE.Group(); pivot.add(halo); scene.add(pivot);
+pivot.rotation.set(KON_R[0], KON_R[1], 0, 'YXZ');
+
+// rozpuszczanie (B, E) i rozjaśnianie (A, D): dopisek do shaderów materiałów modelu.
+// Krawędź idzie wzdłuż osi x świata (od lewej do prawej na ekranie) i jest nieregularna (szum).
+const U = { sweep: { value: -99 }, glow: { value: 0 }, white: { value: 0 } };
+const NOISE = `
+  float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float vn(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+`;
+Object.values(M).forEach((m) => {
+  m.side = THREE.DoubleSide;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { uSweep: U.sweep, uGlow: U.glow, uWhite: U.white });
+    sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = 'uniform float uSweep, uGlow, uWhite;\nvarying vec3 vWP;\n' + NOISE + sh.fragmentShader.replace('#include <dithering_fragment>', `
+      float dn = vWP.x - uSweep + (vn(vWP * 2.4) + 0.5 * vn(vWP * 5.1) - 0.75) * 0.9;
+      if (dn < 0.0) discard;
+      float edge = 1.0 - smoothstep(0.0, 0.22, dn);
+      gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0), clamp(edge * uGlow + uWhite, 0.0, 1.0));
+      #include <dithering_fragment>`);
+  };
+  m.needsUpdate = true;
+});
+const box = new THREE.Box3().setFromObject(halo); // zakres x modelu w świecie (po obrocie)
+const X0 = box.min.x - 0.9, X1 = box.max.x + 0.9;
+
+// piórko w układzie zgodnym z kamerą (jak na stronie: obrót znosi obrót słuchawek)
+const ft = await featherTexture(rA);
+const fRev = { value: 0 }, fRevB = { value: 9 };
+const fMesh = featherMesh(ft, fRev);
+const feather = new THREE.Group(); feather.add(fMesh);
+feather.quaternion.setFromEuler(new THREE.Euler(KON_R[0], KON_R[1], 0, 'YXZ')).invert();
+feather.position.set(0.1, 0.25, 0.4).applyQuaternion(feather.quaternion);
+feather.scale.setScalar(0.82);
+feather.updateMatrix();
+pivot.add(feather);
+const fMeshB = featherMesh(ft, fRevB); fMeshB.scale.setScalar(0.82); fMeshB.position.set(0.1, 0.25, 0.4); sceneB.add(fMeshB);
+
+// ---------- Drobinki (C, E, obecny): pary punkt na modelu → punkt na piórku, w kolejności od lewej do prawej ----------
+function buildDust(N, size, alpha, color) {
+  pivot.updateMatrixWorld(true);
+  const toPivot = new THREE.Matrix4().copy(pivot.matrixWorld).invert();
+  const meshes = []; halo.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  const areas = meshes.map((m) => { const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, p = g.attributes.position, A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(); let a = 0; for (let i = 0; i < p.count; i += 3) { A.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld); B.fromBufferAttribute(p, i + 1).applyMatrix4(m.matrixWorld); C.fromBufferAttribute(p, i + 2).applyMatrix4(m.matrixWorld); a += B.sub(A).cross(C.sub(A)).length() / 2; } return a; });
+  const total = areas.reduce((s, a) => s + a, 0), hp = [], v = new THREE.Vector3();
+  meshes.forEach((m, k) => { const s = new MeshSurfaceSampler(m).build(), n = Math.round(N * areas[k] / total); for (let i = 0; i < n; i++) { s.sample(v); const w = v.clone().applyMatrix4(m.matrixWorld); hp.push({ w, l: w.clone().applyMatrix4(toPivot) }); } });
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const fe = [];
+  while (fe.length < hp.length) { const x = rnd() * ft.W | 0, y = rnd() * ft.H | 0; if (rnd() * 255 > ft.data[(y * ft.W + x) * 4 + 3]) continue; const u = (x + 0.5) / ft.W; fe.push({ u, p: featherPoint(u, 1 - (y + 0.5) / ft.H).applyMatrix4(fMesh.matrixWorld).applyMatrix4(toPivot) }); }
+  hp.sort((a, b) => a.w.x - b.w.x); fe.sort((a, b) => a.u - b.u);
+  const n = hp.length, start = new Float32Array(n * 3), end = new Float32Array(n * 3), k = new Float32Array(n), r3 = new Float32Array(n * 3), wx = new Float32Array(n);
+  for (let i = 0; i < n; i++) { hp[i].l.toArray(start, i * 3); fe[i].p.toArray(end, i * 3); k[i] = fe[i].u; wx[i] = hp[i].w.x; r3[i * 3] = rnd() * 2 - 1; r3[i * 3 + 1] = rnd() * 2 - 1; r3[i * 3 + 2] = rnd() * 2 - 1; }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(start, 3)); g.setAttribute('aEnd', new THREE.BufferAttribute(end, 3)); g.setAttribute('aK', new THREE.BufferAttribute(k, 1)); g.setAttribute('aRnd', new THREE.BufferAttribute(r3, 3));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
+    uniforms: { uW: { value: 0 }, uSize: { value: size }, uPR: { value: rA.getPixelRatio() }, uAlpha: { value: alpha }, uCol: { value: new THREE.Color(color) } },
+    vertexShader: `uniform float uW, uSize, uPR; attribute vec3 aEnd, aRnd; attribute float aK; varying float vA; varying float vT;
+      void main() { float d = uW * ${RUN.toFixed(2)} - aK; float e = smoothstep(0.0, 0.35, d); float s = sin(3.14159 * e);
+        vec3 p = mix(position, aEnd, e) + aRnd * 0.26 * s + vec3(0.0, 0.32 * s, 0.0);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = uSize * uPR / -mv.z;
+        vA = step(0.0, d) * (1.0 - smoothstep(0.32, 0.6, d)); vT = aRnd.x; }`,
+    fragmentShader: `uniform float uAlpha; uniform vec3 uCol; varying float vA; varying float vT;
+      void main() { vec2 c = gl_PointCoord - 0.5; float a = vA * uAlpha * (1.0 - smoothstep(0.05, 0.25, dot(c, c))); if (a < 0.004) discard;
+        gl_FragColor = vec4(uCol * (0.85 + 0.3 * vT), a); }` });
+  const pts = new THREE.Points(g, mat); pts.frustumCulled = false; pts.visible = false; pivot.add(pts);
+  pts.userData = { wx, k };
+  return pts;
+}
+const DUST = {
+  0: buildDust(42000, 17, 0.75, '#77777d'),   // jak na stronie: wyraźne kropki
+  C: buildDust(130000, 4.2, 0.32, '#86868c'),   // mgiełka: bardzo drobny, półprzezroczysty pył
+  E: buildDust(26000, 4.5, 0.4, '#8e8e94'),    // pył odrywający się od krawędzi rozpuszczania
+};
+// położenie krawędzi (x świata) tuż za ostatnią drobinką, która już ruszyła
+function frontX(d, front) { const { k, wx } = d.userData; let lo = 0, hi = k.length; while (lo < hi) { const m = (lo + hi) >> 1; if (k[m] < front) lo = m + 1; else hi = m; } return lo === 0 ? X0 : lo >= wx.length ? X1 + 2 : wx[lo]; }
+
+// ---------- Warianty: stan sceny dla postępu p (0 słuchawki … 1 piórko) ----------
+let V = 'A';
+function apply(p, t) {
+  // domyślnie: model cały, piórko ukryte, druga warstwa pusta
+  U.sweep.value = -99; U.glow.value = 0; U.white.value = 0;
+  halo.visible = true; halo.scale.setScalar(1); halo.position.set(0, 0, 0); fMesh.visible = false; fRev.value = 0;
+  fMesh.material.opacity = 1; feather.scale.setScalar(0.82);
+  Object.values(DUST).forEach((d) => { d.visible = false; });
+  cA.style.filter = ''; cA.style.opacity = 1; cB.style.opacity = 0; cB.style.filter = '';
+  // piórko unosi się lekko, gdy już jest
+  fMesh.position.y = Math.sin(t * 0.8) * 0.06 * smooth((p - 0.9) / 0.1);
+  if (V === 'A') {
+    const out = smooth(seg(p, 0.1, 0.62)), inn = smooth(seg(p, 0.38, 0.9));
+    cA.style.filter = `blur(${(16 * out).toFixed(1)}px)`; cA.style.opacity = (1 - out).toFixed(3); U.white.value = 0.35 * out;
+    halo.scale.setScalar(1 - 0.06 * out);
+    cB.style.opacity = inn.toFixed(3); cB.style.filter = `blur(${(16 * (1 - inn)).toFixed(1)}px)`;
+  } else if (V === 'B' || V === 'E') {
+    const s = seg(p, 0.08, 0.72);
+    U.sweep.value = lerp(X0, X1, s); U.glow.value = 0.9;
+    fMesh.visible = p > 0.05; fRev.value = RUN * smooth(seg(p, 0.22, 0.98)) * 1.02;
+    if (V === 'E') { const d = DUST.E; d.visible = true; d.material.uniforms.uW.value = seg(p, 0.06, 0.86); }
+  } else if (V === 'C' || V === '0') {
+    const d = DUST[V], w = seg(p, 0.05, 0.95);
+    d.visible = w > 0.0005; d.material.uniforms.uW.value = w;
+    U.sweep.value = w > 0.0005 ? frontX(d, w * RUN) : -99;
+    fMesh.visible = d.visible; fRev.value = w * RUN;
+  } else if (V === 'D') {
+    const a = smooth(seg(p, 0.08, 0.5)), b = smooth(seg(p, 0.42, 0.92));
+    halo.scale.set(1 + 0.25 * a, Math.max(0.03, 1 - 0.97 * a), 1 - 0.5 * a); U.white.value = a;
+    halo.visible = a < 0.995;
+    cA.style.filter = `blur(${(6 * Math.sin(Math.PI * a)).toFixed(1)}px)`;
+    fMesh.visible = b > 0.001; fRev.value = 9; fMesh.material.opacity = b;
+    feather.scale.set(0.82, 0.82 * lerp(0.05, 1, b), 0.82);
+  }
+}
+
+// ---------- Odtwarzanie i sterowanie ----------
+const slider = document.getElementById('p'), pv = document.getElementById('pv'), play = document.getElementById('play'), desc = document.getElementById('desc');
+let playing = true, p = 0, dir = 1, hold = 0;
+document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+  V = b.dataset.v; document.querySelectorAll('.tabs button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  desc.innerHTML = DESC[V]; p = 0; dir = 1; hold = 0.6;
+}));
+desc.innerHTML = DESC[V];
+play.addEventListener('click', () => { playing = !playing; play.textContent = playing ? 'Pauza' : 'Odtwórz'; });
+slider.addEventListener('input', () => { playing = false; play.textContent = 'Odtwórz'; p = slider.value / 1000; });
+document.getElementById('bg').addEventListener('click', (e) => { const w = document.body.classList.toggle('white'); e.target.textContent = w ? 'Tło: szare' : 'Tło: białe'; });
+
+function size() {
+  const r = cA.getBoundingClientRect();
+  for (const rr of [rA, rB]) rr.setSize(r.width, r.height, false);
+  camera.aspect = r.width / r.height;
+  // na wąskim ekranie kamera dalej, żeby całe piórko się zmieściło
+  camera.position.z = 13 * Math.max(1, 1.25 / camera.aspect);
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', size); size();
+// podgląd jednej klatki (do zrzutów porównawczych): wariant v w postępie p
+window.__show = (v, q) => { V = v; p = q; playing = false; apply(q, 0); rA.render(scene, camera); if (cB.style.opacity !== '0') rB.render(sceneB, camera); };
+let last = performance.now();
+rA.setAnimationLoop((now) => {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now; const t = now / 1000;
+  if (playing) {
+    if (hold > 0) hold -= dt;
+    else { p += dir * dt / 3.6; if (p >= 1 || p <= 0) { p = clamp(p, 0, 1); dir *= -1; hold = 1.1; } }
+    slider.value = Math.round(p * 1000);
+  }
+  pv.value = Math.round(p * 100) + '%';
+  apply(p, t);
+  pivot.rotation.set(KON_R[0], KON_R[1] + Math.sin(t * 0.45) * 0.05, 0, 'YXZ');
+  rA.render(scene, camera);
+  if (cB.style.opacity !== '0') rB.render(sceneB, camera);
+});
+</script>
+</body>
+</html>

@@ -6,7 +6,11 @@
 import { PALETTES } from './palettes.js';
 
 gsap.registerPlugin(ScrollTrigger);
-const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// ograniczony ruch (ustawienie systemu „Efekty animacji”); ?reduce w adresie wymusza go do sprawdzenia
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches || location.search.includes('reduce');
+// sam ekran dotykowy (telefon, tablet): przewijanie przejmuje skrypt (ScrollTrigger.normalizeScroll), więc sekcje, napisy
+// i model jadą w tej samej klatce, a pasek adresu nie chowa się w trakcie (inaczej zmienia się wysokość okna)
+const touch = ScrollTrigger.isTouch === 1;
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v)), lerp = (a, b, t) => a + (b - a) * t, degToRad = (d) => d * Math.PI / 180;
 const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
@@ -70,8 +74,9 @@ const P = {
   },
   day: () => {
     // komputer: prawa część ekranu nad osią czasu; tablet i telefon: wolne miejsce między tytułem a zegarem
-    const h = rel('.day .h2', '#uzytkowanie'), c = rel('.clock b', '#uzytkowanie'), t = rel('.track', '#uzytkowanie'), pad = parseFloat(getComputedStyle($('.day')).paddingLeft);
-    const r = L.mobile ? { left: pad, right: innerWidth - pad, top: h.bottom + 16, bottom: c.top - 72 } /* zapas na opis (na telefonie stoi nad zegarem, wieczorem w dwóch liniach) */
+    // telefon: opis nad zegarem ma stałą wysokość dwóch linii (CSS), więc model kończy się 24 px nad nim, bez dodatkowego zapasu
+    const h = rel('.day .h2', '#uzytkowanie'), c = rel('.clock', '#uzytkowanie'), t = rel('.track', '#uzytkowanie'), pad = parseFloat(getComputedStyle($('.day')).paddingLeft);
+    const r = L.mobile ? { left: pad, right: innerWidth - pad, top: h.bottom + 20, bottom: c.top - 24 }
       : { left: innerWidth * 0.55, right: innerWidth - pad, top: 76, bottom: t.top - 24 }; // tytuł i zegar zajmują lewą część (ok. 40% szerokości)
     const f = fitRect(r, 1.1, 1, 0.85);
     return pose({ px: f.px, py: f.py, rx: 0.14, s: f.s });
@@ -137,6 +142,9 @@ function measure() {
   Object.assign(B, { hE: g('hero').end, dS: g('design').start, dE: g('design').end, kS: g('kol').start, kE: g('kol').end, yS: g('day').start, yE: g('day').end,
     nS: g('dane').start, nE: g('dane').end, cS: g('kon').start, cE: g('kon').end, end: ScrollTrigger.maxScroll(window) });
   POSES = Object.fromEntries(Object.keys(P).map((k) => [k, P[k]()]));
+  // cień w Konfiguracji: tuż pod dolną krawędzią modelu (liczoną z ujęcia), a nie w stałym miejscu sekcji
+  const k = POSES.kol, u = innerHeight / (2 * halfH()), r = rel('#spin', '#konfiguracja');
+  spinEl.style.setProperty('--sh-y', ((0.5 - k.py / (2 * halfH())) * innerHeight + 0.47 * MODEL_H * k.s * u - r.top).toFixed(0) + 'px');
   if (G) G.measure();
 }
 const AN_0 = 0.8, AN_U = AN_0 + 5;
@@ -162,18 +170,20 @@ function landSpot() {
   const r = landEl.getBoundingClientRect();
   let w = innerWidth * (!L.mobile ? 0.34 : innerWidth <= 560 ? 0.52 : 0.42);
   // niskie ekrany: piórko (wysokie na ok. 0,45 szerokości) mieści się między odnośnikami stopki a napisem, z zapasem 16 px
-  if (!L.mobile) w = Math.min(w, (r.top - footTopEl.getBoundingClientRect().bottom - 16) / 0.45);
-  return { x: r.left, y: r.top - G.featherOff.h * w, w };
+  const room = r.top - footTopEl.getBoundingClientRect().bottom; // wolny pas między odnośnikami (z e-mailem) a napisem
+  if (!L.mobile) w = Math.min(w, (room - 16) / 0.45);
+  return { x: r.left, y: r.top - G.featherOff.h * w, w, room };
 }
 // piórko, które właśnie powstało w miejscu modelu w Kontakcie (komputer: w lewej kolumnie)
 function laneSpot() {
   // tablet i telefon: miejsce obok tytułu jest małe, więc piórko ma jego szerokość (pełną dostaje dopiero nad stopką)
-  const r = $('#kon-lane').getBoundingClientRect(), w = r.width * (L.mobile ? 0.9 : 0.8);
-  return { x: Math.min(r.left + r.width / 2, innerWidth - w * 0.55), y: r.top + r.height / 2, w };
+  const r = $('#kon-lane').getBoundingClientRect(), w = r.width * (L.mobile ? 0.78 : 0.62); // na początku mniejsze, rośnie przy opadaniu
+  // tablet i telefon: przy prawej krawędzi miejsca, jak najdalej od tytułu
+  return { x: L.mobile ? Math.min(r.right - w * 0.5, innerWidth - w * 0.55) : r.left + r.width / 2, y: r.top + r.height / 2, w };
 }
 const lanePose = () => { const l = laneSpot(); return featherAt(l.x, l.y, l.w); };
 // pusty pas między dołem formularza Kontaktu a odnośnikami stopki: tędy piórko przechodzi w bok (komputer)
-const kformEl = $('#kform'), footTopEl = $('.foot-top');
+const kformEl = $('#kform'), footTopEl = $('.foot-top'), footColsEl = $('.foot-cols'), footMailEl = $('.foot-mail');
 const band = () => { const a = kformEl.getBoundingClientRect().bottom, b = footTopEl.getBoundingClientRect().top; return { y: (a + b) / 2, h: b - a }; };
 const featherReady = () => G && G.dust && G.featherOff;
 
@@ -208,7 +218,7 @@ function scrollState(y) {
   }
   // Anatomia → oferta: model przesuwa się do kolumny konfiguratora i lekko dokręca, tło przechodzi w białe
   // (model dochodzi do swojej kolumny, zanim wjedzie tekst)
-  else if (y < B.kS) { const t = seg(y, B.dE, B.kS); S.pose = mixPose(featPose(4), POSES.kol, io(Math.min(1, t * 1.4))); S.bg = mixCol(ANAT_BG, '#ffffff', t); S.white = 1 - t; }
+  else if (y < B.kS) { const t = seg(y, B.dE, B.kS); S.pose = mixPose(featPose(4), POSES.kol, io(Math.min(1, t * 1.8))); S.bg = mixCol(ANAT_BG, '#ffffff', t); S.white = 1 - t; S.spin = smooth(seg(t, 0.72, 1)); } // cień pod modelem dopiero, gdy model dojedzie (wcześniej najeżdżał na wjeżdżające słuchawki)
   else if (y <= B.kE) {
     // Konfiguracja (przypięta): kolor idzie za przewijaniem, z postojem na każdym (Kreda, Piasek, Grafit)
     const p = seg(y, B.kS, B.kE);
@@ -288,17 +298,23 @@ function scrollState(y) {
       // Tablet, telefon: pas jest za wąski, więc piórko wyjeżdża z Kontaktem w górę, a potem wlatuje z prawej
       // między odnośniki a napis. Przez cały czas lekko się kołysze.
       const f = seg(t, T0, 1), l = laneSpot(), d = landSpot();
+      // komputer: piórko schodzi do napisu przez szczelinę między odnośnikami a e-mailem stopki; gdy szczelina jest węższa
+      // od piórka (węższe ekrany), wlatuje z prawej do wolnego pasa nad napisem, jak na telefonie
+      const fc = footColsEl.getBoundingClientRect(), fm = footMailEl.getBoundingClientRect();
+      const side = L.mobile || fm.left - fc.right - 32 < d.w * 1.15;
       let x, yy, w;
-      if (!L.mobile) {
+      if (!side) {
         // w pasie piórko jest niższe od pasa (wysokość piórka to ok. 0,44 szerokości, z zapasem ok. 36 px nad i pod, bo piórko się kołysze)
         const bd = band(), wb = clamp((bd.h - 72) / 0.44, 160, l.w), f1 = io(seg(f, 0, 0.3)), f2 = io(seg(f, 0.3, 0.72)), f3 = smooth(seg(f, 0.72, 1));
         x = lerp(l.x, d.x, f2); yy = lerp(lerp(l.y, bd.y, f1), d.y, f3); w = lerp(lerp(l.w, wb, f1), d.w, f3);
         S.top = f > 0.3;
       } else {
-        const g = smooth(seg(f, 0.45, 1));
-        if (f < 0.45) { x = l.x; yy = l.y; w = l.w; }
-        else { x = lerp(innerWidth + d.w * 0.6, d.x, 1 - (1 - g) ** 2); yy = d.y; w = d.w; } // cały czas w pasie nad napisem
-        S.top = f >= 0.45;
+        // wlatuje z prawego górnego rogu wolnego pasa nad napisem i opada na litery, kołysząc się (pas jest wyższy od piórka,
+        // a piórko wchodzi na szerokość tekstu dopiero na dole pasa, więc nie przechodzi przez e-mail ani odnośniki)
+        const g = seg(f, 0.4, 1);
+        if (f < 0.4) { x = l.x; yy = l.y; w = l.w; }
+        else { x = lerp(innerWidth + d.w * 0.6, d.x, 1 - (1 - g) ** 1.6); yy = d.y - d.w * clamp((d.room - 16) / d.w - 0.45, 0, 0.14) * (1 - smooth(g)); w = d.w; } // opada tyle, na ile pozwala pas
+        S.top = f >= 0.4;
       }
       const k = 1 - smooth(seg(f, 0.8, 1));
       S.pose = featherAt(x + Math.sin(f * Math.PI * 3) * 0.04 * w * k, yy, w);
@@ -361,7 +377,9 @@ function frame(time) {
   const y = window.scrollY, S = scrollState(y);
   if (S.spin !== lastSpin) { spinEl.style.opacity = S.spin; lastSpin = S.spin; }
   const ent = setEntrance(S.ent);
-  Object.assign(rig, S.pose); rig.wave = S.wave; rig.vis = S.vis;
+  Object.assign(rig, S.pose); rig.vis = S.vis;
+  // przemiana w piórko idzie za przewijaniem; skok (np. piórko policzyło się, gdy czytelnik był już w Kontakcie) wygładza się w czasie
+  rig.wave = Math.abs(S.wave - rig.wave) > 0.08 && !reduce ? rig.wave + (S.wave - rig.wave) * (1 - Math.exp(-dt / 0.3)) : S.wave;
   setDane(S.dane);
   if (S.top !== lastTop) { canvas.style.zIndex = S.top ? 3 : ''; lastTop = S.top; } // lądujące piórko nad napisem w stopce
   if (S.land !== lastLand) { footEl.style.setProperty('--land', S.land.toFixed(3)); lastLand = S.land; }
@@ -505,7 +523,8 @@ mmenu.inert = true;
 
 // ---------- Płynne przewijanie i odnośniki ----------
 let lenis = null;
-if (!reduce) {
+if (touch) ScrollTrigger.normalizeScroll(true);
+else if (!reduce) {
   lenis = new Lenis({ lerp: 0.09 });
   lenis.on('scroll', ScrollTrigger.update);
   gsap.ticker.add((t) => lenis.raf(t * 1000));
@@ -522,7 +541,8 @@ $$('a[href^="#"]').forEach((a) => a.addEventListener('click', (e) => {
 // ---------- Start ----------
 layout();
 timelines();
-addEventListener('resize', () => { layout(); });
+// zmiana rozmiaru: ScrollTrigger przelicza przypięcia przy zmianie szerokości; ujęcia liczą się od nowa zawsze
+addEventListener('resize', () => { layout(); if (B.end) measure(); });
 gsap.ticker.add((time) => frame(time));
 
 // Część 3D: wczytuje się, gdy czytelnik zacznie przewijać albo dotknie strony, a najpóźniej chwilę po wczytaniu strony
@@ -539,7 +559,7 @@ function load3D() {
     G = g;
     if (POSES) G.measure();
     gsap.to(appear, { v: 1, duration: reduce ? 0 : 1.2, ease: 'power2.out' });
-    setTimeout(() => { dustIdle = true; }, 6000);
+    setTimeout(() => { dustIdle = true; }, 1500); // piórko liczy się w tle, kawałkami, wcześnie (zanim ktoś dojedzie do Kontaktu)
   }).catch((e) => { document.documentElement.classList.add('no-webgl'); console.warn('3D niedostępne', e); });
 }
 if (scrollY > 0 || location.hash) load3D();
