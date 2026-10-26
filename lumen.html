@@ -323,7 +323,9 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   #dane { display: flex; flex-direction: column; padding-bottom: 40px; }
   .dane-head { order: -1; } /* Figma: tytuł, pod nim model, na dole wiersze */
   .dane-lane { flex: 1; min-height: 160px; margin: 8px 0; }
-  .spec { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+  /* align-self: stretch: na komputerze tabela stoi u góry kolumny (start), ale w układzie jednej kolumny „start”
+     zwężał ją do długości tekstu i kończyła się przed prawym marginesem */
+  .spec { align-self: stretch; margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
   .spec > div { padding: 12px 0; }
   .sheet .spec { display: block; }
   /* Kontakt: model mały obok tytułu, formularz na całą szerokość. Sekcja wypełnia ekran: pole wiadomości rośnie

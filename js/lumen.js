@@ -552,7 +552,7 @@ const NAV_AT = {
   '#design': () => B.dS + (B.dE - B.dS) * (AN_0 + 0.05) / AN_U, // pierwsza cecha już widoczna
   '#konfiguracja': () => B.kS,
   '#uzytkowanie': () => B.yS,
-  '#dane': () => (L.mobile ? B.nS : B.nS + (B.nE - B.nS) * 0.65), // komputer: model rozłożony, wszystkie wiersze widoczne
+  '#dane': () => B.nS + (B.nE - B.nS) * 0.65, // model rozłożony, wszystkie wiersze już widoczne (pojawiają się po kolei także na telefonie)
   '#kontakt': () => B.cS,
   '#stopka': () => B.end,
 };
