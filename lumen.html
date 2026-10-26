@@ -9,7 +9,7 @@
 <!-- czcionka Geist z tej samej strony (licencja OFL, fonts/OFL.txt): bez blokującego arkusza z Google Fonts -->
 <link rel="preload" href="fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/geist-latin-ext.woff2" as="font" type="font/woff2" crossorigin><!-- polskie litery już w nagłówku Startu -->
-<link rel="preload" href="img/hero.jpg" as="image" fetchpriority="high">
+<link rel="preload" href="img/hero.webp" as="image" fetchpriority="high">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
@@ -44,7 +44,7 @@ button { font: inherit; color: inherit; }
 /* Start: zdjęcie. Przy przewijaniu najpierw gaśnie tekst, potem zdjęcie, a pod koniec pojawia się wąska, miękka smuga
    światła z góry, która zostaje nad Anatomią. Kształt przycina element wewnętrzny, a rozmycie działa na zewnętrznym,
    więc krawędzie są miękkie; maska rozpuszcza smugę ku dołowi. */
-.photo { position: fixed; inset: 0; z-index: 0; background: #efebe5 url(img/hero.jpg) 50% 50% / cover no-repeat; }
+.photo { position: fixed; inset: 0; z-index: 0; background: #efebe5 url(img/hero.webp) 50% 50% / cover no-repeat; }
 .light { position: fixed; left: 50%; top: -6vh; width: min(70vw, 900px); height: 96vh; transform: translateX(-50%); z-index: 0; pointer-events: none; visibility: hidden; opacity: 0; filter: blur(48px); -webkit-mask-image: linear-gradient(#000 20%, transparent); mask-image: linear-gradient(#000 20%, transparent); }
 .light i { position: absolute; inset: 0; background: #fffefb; clip-path: polygon(44% 0, 56% 0, 71% 100%, 29% 100%); }
 #stage { position: fixed; left: 0; top: 0; z-index: 1; pointer-events: none; opacity: 0; }
@@ -254,7 +254,9 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 /* ---- 7. Stopka: odnośniki u góry, napis „Lumen Halo” na całą szerokość, na który spada piórko ---- */
 #stopka { display: flex; flex-direction: column; padding: 108px var(--pad) 32px; }
 .foot-top { display: flex; justify-content: space-between; gap: 32px; }
-.foot-cols { display: flex; gap: 64px; }
+.foot-cols { display: flex; gap: clamp(32px, 4.5vw, 64px); }
+/* węższe okna: e-mail pod odnośnikami (obok nich nie mieścił się i wychodził poza ekran) */
+@media (max-width: 900px) { .foot-top { flex-direction: column; } .foot-mail { margin-top: 0; } }
 .foot-cols div { display: flex; flex-direction: column; gap: 12px; }
 .foot-cols a { font-size: 15px; text-decoration: none; }
 .foot-cols a:hover { text-decoration: underline; }
@@ -272,7 +274,10 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   /* Start na telefonie i tablecie (pionowo): bez etykiety „Nowość”, zdjęcie przesunięte tak, żeby słuchawki były widoczne */
   .photo { background-position: 85% 50%; }   /* tablet: całe słuchawki */
   .badge { display: none; }
-  .hero-copy { padding-top: calc(var(--nav-h) + 20px); }
+  /* Tytuł na środku wolnego pasa między menu a słuchawkami na zdjęciu. Na ekranach pionowych zdjęcie (1440 × 900)
+     wypełnia ekran na wysokość, więc słuchawki zaczynają się zawsze na ok. 43–46% wysokości ekranu, niezależnie od
+     szerokości i proporcji: pas ma 44% wysokości, a tekst stoi w nim na środku (bez stałego odstępu od góry). */
+  .hero-copy { min-height: 44vh; min-height: 44svh; padding: var(--nav-h) var(--pad) 16px; justify-content: center; }
   .hero-copy .h1 { margin-top: 0; }
   .hero-copy .cta-row { margin-top: 28px; }
   .lp-bar i { width: 28px; }
@@ -310,8 +315,12 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .spec { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
   .spec > div { padding: 12px 0; }
   .sheet .spec { display: block; }
-  /* Kontakt: model mały obok tytułu, formularz na całą szerokość */
-  #kontakt { display: block; position: relative; padding-bottom: 40px; }
+  /* Kontakt: model mały obok tytułu, formularz na całą szerokość. Sekcja wypełnia ekran: pole wiadomości rośnie
+     w wolne miejsce (do 40% wysokości ekranu), więc formularz nie jest ściśnięty u góry z pustym pasem pod spodem */
+  #kontakt { display: flex; flex-direction: column; position: relative; padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+  .kon-copy, .kform, .fld.msg { flex: 1 1 auto; display: flex; flex-direction: column; }
+  .fld.msg { --msg-max: 36svh; max-height: calc(var(--msg-max) + 28px); } /* 28: podpis pola */
+  .fld.msg textarea { flex: 1 1 auto; height: auto; min-height: 120px; }
   .kon-lane { position: absolute; right: var(--pad); top: 92px; width: 240px; height: 240px; margin: 0; }
   .kon-copy .lead { max-width: 400px; }
   /* Stopka: odnośniki, pod nimi e-mail */
@@ -350,13 +359,14 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .spec-more { display: block; align-self: flex-start; margin-top: 16px; padding: 0; border: 0; background: none; font: 500 13px var(--font); color: var(--ink); cursor: pointer; }
   /* Kontakt: nagłówek niżej (obok modelu), krótszy opis, pola jedno pod drugim, zgoda jako notka pod przyciskiem */
   /* Kontakt na jednym ekranie: bez wyboru tematu (zostaje odsłuch), imię i e-mail obok siebie */
-  #kontakt { padding-top: 96px; padding-bottom: 24px; }
+  #kontakt { padding-top: 96px; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
   .kon-lane { top: 84px; width: 118px; height: 118px; }
   .kon-copy .lead { font-size: 15px; }
   .kform { margin-top: 24px; gap: 16px; }
   .seg { display: none; }
   .frow { gap: 12px; }
-  .fld textarea { height: 88px; }
+  .fld.msg { --msg-max: 30svh; }
+  .fld.msg textarea { min-height: 88px; }
   .consent, .send small { display: none; }
   .send .btn { width: 100%; }
   .kon-note { display: block; margin: -4px 0 0; font-size: 12px; }
@@ -381,10 +391,12 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .track { margin-top: 8px; }
   .day-foot { margin-top: 16px; }
 }
-/* tablet pionowo: większy nagłówek, tekst wyżej nad słuchawkami */
+/* tablet pionowo: większy nagłówek; formularz Kontaktu w większym piśmie, bo ekran jest duży i oglądany z dalszej odległości */
 @media (min-width: 561px) and (max-aspect-ratio: 5/6) {
-  .hero-copy { padding-top: calc(var(--nav-h) + 64px); }
   .hero-copy .h1 { font-size: 64px; }
+  .fld span, .seg button, .consent, .send small { font-size: 15px; }
+  .fld input, .fld textarea { font-size: 17px; padding: 18px 20px; }
+  .consent input { width: 20px; height: 20px; }
 }
 /* niskie ekrany (laptopy 13", okna przeglądarki z paskami): gęściej, żeby sekcje mieściły się w jednym ekranie */
 @media (max-height: 780px) and (min-aspect-ratio: 5/6) {
@@ -470,11 +482,11 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
     <div class="anat-head">
       <h2 class="h2"><span>Każdy detal</span>w świetle dziennym.</h2>
     </div>
-    <article class="lp"><h3>Miękkie poduszki</h3><p>Pianka memory w oddychającej dzianinie. Dopasowuje się w 30 s.</p></article>
+    <article class="lp"><h3>Miękkie poduszki</h3><p>Pianka memory w oddychającej dzianinie.</p></article>
     <article class="lp"><h3>Pierścień z aluminium</h3><p>Szczotkowany, toczony z jednego kawałka.</p></article>
     <article class="lp"><h3>Ceramiczna muszla</h3><p>Matowa, odporna na zarysowania i odciski.</p></article>
     <article class="lp"><h3>Pałąk z dzianiny 3D</h3><p>Oddychająca tkanina bez szwów.</p></article>
-    <article class="lp"><h3>Ruchome ramię</h3><p>Płynna regulacja, cicha jak zawias drzwi.</p></article>
+    <article class="lp"><h3>Ruchome ramię</h3><p>Płynna i cicha regulacja, zapewniająca komfort.</p></article>
   </section>
 
   <section id="konfiguracja" aria-label="Konfiguracja i zakup">
@@ -559,7 +571,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
           <label class="fld"><span>Imię</span><input name="imie" autocomplete="name" placeholder="Jan Kowalski"></label>
           <label class="fld"><span>E-mail</span><input name="email" type="email" autocomplete="email" placeholder="jan@przyklad.pl"></label>
         </div>
-        <label class="fld"><span>Wiadomość</span><textarea name="wiadomosc" placeholder="W czym możemy pomóc?"></textarea></label>
+        <label class="fld msg"><span>Wiadomość</span><textarea name="wiadomosc" placeholder="W czym możemy pomóc?"></textarea></label>
         <label class="consent"><input type="checkbox" name="zgoda"> Zgadzam się na kontakt w sprawie tego zapytania.</label>
         <div class="send"><button class="btn" type="submit">Wyślij zapytanie</button><small>Odpowiemy w ciągu 1 dnia roboczego.</small></div>
         <p class="kon-note">Wysyłając, zgadzasz się na kontakt w sprawie zapytania.</p>

@@ -176,10 +176,11 @@ function landSpot() {
   const room = r.top - footTopEl.getBoundingClientRect().bottom; // wolny pas między odnośnikami (z e-mailem) a napisem
   if (!L.mobile) w = Math.min(w, (room - 16) / 0.55); // 0,45 wysokości piórka + zapas na kołysanie w locie
   let x = r.left;
-  if (!L.mobile) { // komputer: na osi szczeliny między odnośnikami a e-mailem (tędy opada), na szczytach liter napisu
-    const fc = footColsEl.getBoundingClientRect(), fm = footMailEl.getBoundingClientRect(), h = wmEl.getBoundingClientRect();
+  const fc = footColsEl.getBoundingClientRect(), fm = footMailEl.getBoundingClientRect();
+  if (!L.mobile && fm.left > fc.right) { // komputer: na osi szczeliny między odnośnikami a e-mailem (tędy opada), na szczytach liter napisu
+    const h = wmEl.getBoundingClientRect();
     x = clamp((fc.right + fm.left) / 2, h.left + w * 0.5, h.right - w * 0.5);
-  }
+  } // węższe okna (e-mail pod odnośnikami): na „Halo”, jak na tablecie
   return { x, y: r.top - G.featherOff.h * w, w, room };
 }
 // piórko, które właśnie powstało w miejscu modelu w Kontakcie (komputer: w lewej kolumnie)
@@ -543,19 +544,39 @@ else {
   gsap.ticker.add((t) => lenis.raf(t * 1000));
   gsap.ticker.lagSmoothing(0);
 }
+// Odnośniki do sekcji: miejsce przewinięcia liczone z granic przypięć, a nie z położenia elementu. Przypięta sekcja,
+// którą już minęliśmy, stoi w swoim opakowaniu przesunięta o długość przypięcia, więc przewinięcie „do elementu”
+// lądowało na jej końcu (Design, Użytkowanie). Każda sekcja otwiera się w chwili, gdy jej treść jest już widoczna.
+const NAV_AT = {
+  '#start': () => 0,
+  '#design': () => B.dS + (B.dE - B.dS) * (AN_0 + 0.05) / AN_U, // pierwsza cecha już widoczna
+  '#konfiguracja': () => B.kS,
+  '#uzytkowanie': () => B.yS,
+  '#dane': () => (L.mobile ? B.nS : B.nS + (B.nE - B.nS) * 0.65), // komputer: model rozłożony, wszystkie wiersze widoczne
+  '#kontakt': () => B.cS,
+  '#stopka': () => B.end,
+};
 $$('a[href^="#"]').forEach((a) => a.addEventListener('click', (e) => {
-  const target = $(a.getAttribute('href'));
-  if (!target) return;
+  const at = NAV_AT[a.getAttribute('href')];
+  if (!at || !B.end) return;
   e.preventDefault();
-  if (lenis) lenis.scrollTo(target, { duration: 1.6, force: true });
-  else target.scrollIntoView();
+  const y = Math.round(at());
+  if (lenis) lenis.scrollTo(y, { duration: 1.6, force: true });
+  else window.scrollTo(0, y);
 }));
 
 // ---------- Start ----------
 layout();
 timelines();
 // zmiana rozmiaru: ScrollTrigger przelicza przypięcia przy zmianie szerokości; ujęcia liczą się od nowa zawsze
-addEventListener('resize', () => { layout(); if (B.end) measure(); });
+// Na ekranach dotykowych ScrollTrigger pomija zmianę samej wysokości (myśli, że to pasek adresu), a pasek adresu u nas
+// i tak stoi. Większa zmiana wysokości to obrót, podział ekranu albo rozłożenie telefonu: przypięcia liczą się od nowa.
+let lastH = innerHeight;
+addEventListener('resize', () => {
+  layout(); if (B.end) measure();
+  if (touch && Math.abs(innerHeight - lastH) > 100) ScrollTrigger.refresh();
+  lastH = innerHeight;
+});
 gsap.ticker.add((time) => frame(time));
 
 // Część 3D: wczytuje się, gdy czytelnik zacznie przewijać albo dotknie strony, a najpóźniej chwilę po wczytaniu strony

@@ -91,14 +91,29 @@ export async function start(C) {
     feather.visible = true;
     try { await renderer.compileAsync(scene, camera); } catch (e) { /* kompilacja przy pierwszej klatce */ }
     feather.visible = false;
-    measureFeather();
+    measureFeather(ft);
     G.ready = true;
   }
-  function measureFeather() {
+  function measureFeather(ft) {
     pivot.position.set(0, 0, 0); pivot.rotation.set(KON_R[0], KON_R[1], 0, 'YXZ'); pivot.scale.setScalar(1); pivot.updateMatrixWorld(true);
     const b = new THREE.Box3().setFromObject(fMesh), c = b.getCenter(new THREE.Vector3());
-    // h: połowa wysokości piórka względem jego szerokości (piórko leży na linii liter, więc środek jest nad nią)
-    G.featherOff = { x: c.x, y: c.y, h: (b.max.y - b.min.y) / (b.max.x - b.min.x) * 0.6 };
+    // Dół widocznego piórka: tylko punkty siatki, przy których tekstura nie jest przezroczysta (płaszczyzna ma puste brzegi,
+    // więc dół całej siatki leżał wyraźnie pod piórkiem i piórko „wisiało” nad literami)
+    const p = fMesh.geometry.attributes.position, uv = fMesh.geometry.attributes.uv, v = new THREE.Vector3();
+    const seen = (x, y) => { // najmocniejsze krycie w małym otoczeniu (cienkie promienie leżą między punktami siatki)
+      let a = 0;
+      for (let dy = -8; dy <= 8; dy += 4) for (let dx = -8; dx <= 8; dx += 4) {
+        const X = clamp(x + dx, 0, ft.W - 1), Y = clamp(y + dy, 0, ft.H - 1); a = Math.max(a, ft.data[(Y * ft.W + X) * 4 + 3]);
+      }
+      return a > 60; // ok. 25% krycia: luźne, prawie przezroczyste końce puchu się nie liczą
+    };
+    let low = c.y;
+    for (let i = 0; i < p.count; i++) {
+      if (!seen(Math.round(uv.getX(i) * (ft.W - 1)), Math.round((1 - uv.getY(i)) * (ft.H - 1)))) continue;
+      low = Math.min(low, v.fromBufferAttribute(p, i).applyMatrix4(fMesh.matrixWorld).y);
+    }
+    // h: od środka piórka do jego widocznego dołu, jako ułamek długości piórka (tej samej, którą featherAt ustawia na ekranie)
+    G.featherOff = { x: c.x, y: c.y, h: (c.y - low) / (FL * feather.scale.x) };
     G.featherScale = feather.scale.x;
   }
 
