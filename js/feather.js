@@ -1,5 +1,5 @@
 // Piórko z finału strony: tekstura rysowana na płótnie 2D (stosina, chorągiewki, puch u nasady) na wygiętej powierzchni.
-// Wspólne dla strony (lumen-3d.js) i porównania wariantów przemiany (piorko-warianty.html).
+// Używane przez stronę (lumen-3d.js). Porównanie wariantów przemiany (piorko-warianty.html) usunięte 2026-10-26, jest w historii gita.
 import * as THREE from 'three';
 
 const { lerp, clamp } = THREE.MathUtils;

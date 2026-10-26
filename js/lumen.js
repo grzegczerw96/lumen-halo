@@ -583,7 +583,8 @@ gsap.ticker.add((time) => frame(time));
 // (gdy przeglądarka ma wolną chwilę). Na pierwszym ekranie słuchawek i tak nie widać, więc nic się nie spóźnia,
 // a strona pokazuje się szybciej i nie zacina się zaraz po wejściu.
 const core = { $, $$, smooth, seg, io, rig, drag, L, halfH, halfW, MODEL_H, FL, KON_R, canvas, reduce, P, rel, featPose };
-const WAKE = ['wheel', 'touchstart', 'pointerdown', 'keydown', 'scroll'];
+// Ruch myszy też budzi 3D: na komputerze zwykle wyprzedza pierwsze przewinięcie o kilka sekund
+const WAKE = ['wheel', 'touchstart', 'pointerdown', 'pointermove', 'keydown', 'scroll'];
 let loading = false;
 function load3D() {
   if (loading) return;
@@ -599,7 +600,13 @@ function load3D() {
 if (scrollY > 0 || location.hash) load3D();
 else {
   WAKE.forEach((e) => addEventListener(e, load3D, { passive: true }));
-  const later = () => setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(load3D, { timeout: 2000 }) : load3D()), 2500);
+  // Bez ruchu czytelnika pliki 3D tylko się pobierają (bez uruchamiania), więc pierwszy ekran nic nie kosztuje.
+  // Wcześniej 3D startowało samo po 2,5 s: na serwerach PageSpeed bez karty graficznej WebGL liczy się na procesorze
+  // i blokował stronę na kilkaset ms (wynik komputera spadał do 84).
+  const fetch3D = () => ['js/lumen-3d.js', 'js/halo-model.js', 'js/feather.js', 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js'].forEach((href) => {
+    const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; if (href.startsWith('http')) l.crossOrigin = 'anonymous'; document.head.appendChild(l);
+  });
+  const later = () => setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(fetch3D, { timeout: 2000 }) : fetch3D()), 1500);
   if (document.readyState === 'complete') later(); else addEventListener('load', later, { once: true });
 }
 
