@@ -198,7 +198,8 @@ export async function start(C) {
   const ovScene = new THREE.Scene(), ovCam = new THREE.OrthographicCamera(0, 1, 0, -1, -1, 1);
   LP.forEach((l) => ovScene.add(l.quad));
   const lpCam = new THREE.PerspectiveCamera(18, 1, 0.02, 60);
-  const LP_M = 1.35, LP_LABEL_W = 300, LP_GAP = 40, LP_COMPACT_BOTTOM = 40; // zapas kwadratu wokół koła (cień); szerokość podpisu jak w CSS; odstęp koła od modelu; odstęp opisu od dołu (tablet, telefon)
+  const LP_M = 1.35, LP_LABEL_W = 300, LP_GAP = 40; // zapas kwadratu wokół koła (cień); szerokość podpisu jak w CSS; odstęp koła od modelu
+  let lpPad = 64; // margines strony (z CSS: 64 / 40 / 20), liczony w placeLoupes
   let lpA = 0, lpD = 120, lpTop = 200;
   // narożniki prostopadłościanu wokół modelu (układ obracanej grupy): z nich co klatkę wychodzi obrys modelu na ekranie
   const boxCorners = [];
@@ -225,9 +226,11 @@ export async function start(C) {
     ovCam.right = W; ovCam.bottom = -H; ovCam.updateProjectionMatrix();
     lpTop = C.rel('.anat-head', '#design').bottom + 24; // koła nie wchodzą na tytuł
     // telefon i tablet: wszystkie opisy w jednym miejscu, wyrównane do dołu; pasek stanu nad najwyższym z nich
-    const pad = Math.max(24, 0.045 * W), hMax = Math.max(...LP.map((l) => l.el.offsetHeight));
-    lpTextY = H - LP_COMPACT_BOTTOM - hMax;
-    lpBar.style.transform = `translate(${pad}px, ${lpTextY - 26}px)`;
+    lpPad = parseFloat(getComputedStyle($('.anat-head')).paddingLeft);
+    // opis od dołu ekranu jak w Figmie: telefon 70, tablet 50
+    const hMax = Math.max(...LP.map((l) => l.el.offsetHeight));
+    lpTextY = H - (W <= 560 ? 70 : 50) - hMax;
+    lpBar.style.transform = `translate(${lpPad}px, ${lpTextY - 26}px)`;
     // strona każdej cechy: po której stronie obrysu modelu leży jej punkt w jej własnym ujęciu
     LP.forEach((l, i) => {
       const p = C.featPose(i);
@@ -253,7 +256,7 @@ export async function start(C) {
     // obrys modelu na ekranie
     let x0 = Infinity, x1 = -Infinity;
     boxCorners.forEach((c) => { cTmp.copy(c).applyMatrix4(pivot.matrixWorld).project(camera); const x = (cTmp.x * 0.5 + 0.5) * W; x0 = Math.min(x0, x); x1 = Math.max(x1, x); });
-    const pad = Math.max(24, 0.045 * W), top = lpTop;
+    const pad = lpPad, top = lpTop;
     // pasek stanu (tablet, telefon): odcinki przed aktywnym pełne, aktywny wypełnia się w trakcie swojej cechy
     lpBar.style.opacity = compact ? a : 0;
     if (compact) lpBarFill.forEach((b, j) => { b.style.transform = `scaleX(${clamp(v - j + 0.15, 0, 1).toFixed(3)})`; });

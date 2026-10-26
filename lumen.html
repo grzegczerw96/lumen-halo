@@ -66,7 +66,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .h1 { font-size: clamp(44px, 6.4vw, 96px); }
 .h2 { font-size: clamp(36px, 4.6vw, 64px); }
 .h1 span, .h2 span { display: block; font-weight: 300; }
-.lead { margin: 0; font-size: clamp(17px, 1.35vw, 20px); line-height: 1.5; color: var(--kolor-tekst-drugi); max-width: 34ch; }
+.lead { margin: 0; font-size: 17px; line-height: 1.4; color: var(--kolor-tekst-drugi); max-width: 34ch; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 26px; border-radius: 999px; border: 0; background: var(--kolor-przycisk); color: #fff; font-size: 15px; font-weight: 500; text-decoration: none; cursor: pointer; transition: transform .2s, background .2s; }
 .btn:hover { background: #2b2b2e; }
@@ -129,8 +129,8 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 
 /* ---- 2. Anatomia ---- */
 #design { overflow-x: clip; } /* tytuł wychodzi w górę ponad sekcję, zanim ta dojedzie (patrz pętla w lumen.js) */
-.anat-head { position: absolute; top: calc(var(--nav-h) + 4px); left: 0; right: 0; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 0 var(--pad); }
-.anat-head .h2 { font-size: clamp(32px, 3.8vw, 54px); }
+.anat-head { position: absolute; top: 82px; left: 0; right: 0; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 0 var(--pad); }
+.anat-head .h2 { font-size: clamp(32px, 3.8vw, 54px); } /* Figma: 54 / 44 / 32 */
 /* Lupa: cechy pojawiają się pojedynczo; okrągłe zbliżenie (rysuje je WebGL) stoi obok modelu przy wskazanym punkcie,
    a podpis pod nim. Położenie ustawia skrypt; po lewej stronie modelu podpis jest wyrównany do prawej. */
 .lp { position: absolute; left: 0; top: 0; width: 300px; display: flex; flex-direction: column; gap: 4px; visibility: hidden; opacity: 0; pointer-events: none; }
@@ -152,10 +152,11 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .spin-area:active { cursor: grabbing; }
 /* na białym tle: miękki szary cień pod unoszącym się modelem, żeby jasne słuchawki nie zlewały się z tłem */
 .spin-area::before { content: ""; position: absolute; left: 18%; right: 18%; top: var(--sh-y, 86%); height: 9%; transform: translateY(-50%); background: radial-gradient(closest-side, rgba(0, 0, 0, .1), transparent); pointer-events: none; }
-.spin-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--kolor-tekst-trzeci); white-space: nowrap; }
-.config { display: flex; flex-direction: column; }
+.spin-hint { position: absolute; bottom: 39px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--kolor-tekst-trzeci); white-space: nowrap; }
+/* Figma 1440 × 900: treść 48 px wyżej niż środek pasa pod menu; na niższych oknach przesunięcie maleje do zera */
+.config { display: flex; flex-direction: column; margin-bottom: clamp(0px, calc(100vh - 804px), 96px); }
 .cfg-head { display: flex; flex-direction: column; gap: 12px; }
-.config .h2 { font-size: clamp(34px, 3.9vw, 56px); letter-spacing: -0.04em; }
+.config .h2 { font-size: clamp(32px, 3.75vw, 54px); letter-spacing: -0.04em; } /* skala nagłówków H2: 54 / 44 / 32 */
 .cfg-body { margin-top: 64px; display: flex; flex-direction: column; gap: 32px; }
 .cfg-group { display: flex; flex-direction: column; gap: 20px; }
 .step { font-size: 15px; font-weight: 600; display: flex; gap: 12px; }
@@ -215,17 +216,17 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 .battery span { font-size: 15px; color: var(--d-muted); }
 .facts { grid-column: 6 / 13; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .fact { padding: 24px; border-radius: 20px; background: var(--d-card); display: flex; flex-direction: column; gap: 8px; }
-.fact strong { font-size: clamp(28px, 2.8vw, 40px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.2; }
+.fact strong { font-size: clamp(28px, 2.8vw, 40px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.3; }
 .fact span { font-size: 15px; color: var(--d-muted); }
 
 /* ---- 5. Dane techniczne: lewa kolumna to miejsce modelu (rozkłada się na części), po prawej tytuł i 8 wierszy.
    Sekcja jest przypięta; tytuł i wiersze pojawiają się po kolei (lumen.js). ---- */
-#dane { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; padding: 108px var(--pad) 48px; }
+#dane { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto 1fr; column-gap: 24px; padding: 108px var(--pad) 48px; }
 .dane-lane { grid-column: 1 / 7; grid-row: 1 / 3; margin-top: 42px; }
 .dane-head { grid-column: 7 / 13; }
 .dane-head .h2 { margin-top: 12px; font-size: clamp(34px, 3.75vw, 54px); letter-spacing: -0.04em; }
 .spec { grid-column: 7 / 13; margin: 48px 0 0; align-self: start; }
-.spec > div { display: flex; justify-content: space-between; gap: 24px; padding: 16px 0; border-top: 1px solid var(--kolor-linia); }
+.spec > div { display: flex; justify-content: space-between; gap: 24px; padding: 16px 0 15px; border-top: 1px solid var(--kolor-linia); } /* wiersz 52 jak w Figmie (z linią) */
 .spec dt, .spec dd { margin: 0; font-size: 15px; line-height: 20px; }
 .spec dt { color: var(--kolor-tekst-drugi); }
 .spec dd { font-weight: 500; text-align: right; }
@@ -265,7 +266,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
 /* ---- 7. Stopka: odnośniki u góry, napis „Lumen Halo” na całą szerokość, na który spada piórko ---- */
 #stopka { display: flex; flex-direction: column; padding: 108px var(--pad) 32px; }
 .foot-top { display: flex; justify-content: space-between; gap: 32px; }
-.foot-cols { display: flex; gap: clamp(32px, 4.5vw, 64px); }
+.foot-cols { display: flex; gap: 64px; }
 /* węższe okna: e-mail pod odnośnikami (obok nich nie mieścił się i wychodził poza ekran) */
 @media (max-width: 900px) { .foot-top { flex-direction: column; } .foot-mail { margin-top: 0; } }
 .foot-cols div { display: flex; flex-direction: column; gap: 12px; }
@@ -288,7 +289,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   /* Tytuł na środku wolnego pasa między menu a słuchawkami na zdjęciu. Na ekranach pionowych zdjęcie (1440 × 900)
      wypełnia ekran na wysokość, więc słuchawki zaczynają się zawsze na ok. 43–46% wysokości ekranu, niezależnie od
      szerokości i proporcji: pas ma 44% wysokości, a tekst stoi w nim na środku (bez stałego odstępu od góry). */
-  .hero-copy { min-height: 44vh; min-height: 44svh; padding: var(--nav-h) var(--pad) 16px; justify-content: center; }
+  .hero-copy { min-height: 44vh; min-height: 44svh; padding: var(--nav-h) var(--pad) 8px; justify-content: center; }
   .hero-copy .h1 { margin-top: 0; }
   .hero-copy .cta-row { margin-top: 28px; }
   .lp-bar i { width: 28px; }
@@ -296,7 +297,10 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
      Dół sekcji zostawia miejsce na pasek (pojawia się po kliknięciu próbki), więc nic nie skacze. */
   #konfiguracja { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 24px; padding: var(--nav-h) var(--pad) calc(var(--bar-h) + 40px); }
   .cfg-head .eb, .step, .sum, .config #k-buy, .spin-hint { display: none; }
-  .config .h2 { font-size: 34px; }
+  .config .h2 { font-size: 44px; }
+  .config { margin-bottom: 0; }
+  .anat-head { top: 100px; }
+  .anat-head .h2 { font-size: 44px; }
   .cfg-body { margin-top: 20px; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 20px; }
   .swatches { gap: 18px; }
   .sw { gap: 6px; }
@@ -336,6 +340,7 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .fld.msg textarea { flex: 1 1 auto; height: auto; min-height: 120px; }
   .kon-lane { position: absolute; right: var(--pad); top: 92px; width: 240px; height: 240px; margin: 0; }
   .kon-copy .lead { max-width: 400px; }
+  .seg { display: none; } /* Figma: wybór tematu tylko na komputerze */
   /* Stopka: odnośniki, pod nimi e-mail */
   .foot-top { flex-direction: column; gap: 32px; }
   .foot-mail { margin-top: 0; }
@@ -345,8 +350,11 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   :root { --bar-h: 78px; }
   .photo { background-position: 56% 50%; }
   /* Konfiguracja: model → tytuł 40, tytuł → kolory 24, kolory → etui 20 */
-  #konfiguracja { gap: 40px; }
-  .config .h2 { font-size: 26px; }
+  #konfiguracja { gap: 40px; padding-bottom: calc(var(--bar-h) + 44px); } /* Figma Telefon 375: 44 nad paskiem z ceną */
+  .config .h2 { font-size: 32px; }
+  .anat-head { top: 96px; }
+  .anat-head .h2 { font-size: 32px; }
+  .hero-copy .cta-row { margin-top: 32px; }
   .cfg-body { margin-top: 24px; flex-direction: column; align-items: stretch; }
   .sw i { width: 36px; height: 36px; }
   .buybar { padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
@@ -359,24 +367,23 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   .clock span { min-height: 2.6em; display: flex; align-items: flex-end; } /* miejsce na dwie linie: model nad opisem nie zależy od długości tekstu */
   .clock b { font-size: 48px; }
   .clock span { font-size: 15px; }
-  .track { margin-top: 16px; }
+  .track { margin-top: -12px; } /* Figma: linia „teraz” zaczyna się tuż pod cyframi zegara */
   .track .hr.minor { display: none; }
   .day-foot { margin-top: 24px; }
   .battery { flex-direction: row; align-items: center; gap: 16px; }
   .cell { width: 140px; }
   /* Dane: pięć najważniejszych wierszy, reszta w arkuszu; odnośnik z zapasem nad dolną krawędzią */
-  #dane { padding-top: 96px; padding-bottom: 64px; }
+  #dane { padding-top: 96px; padding-bottom: 82px; }
   .spec { display: block; }
   .spec .opt-row { display: none; }
   .sheet .spec .opt-row { display: flex; }
   .spec-more { display: block; align-self: flex-start; margin-top: 16px; padding: 0; border: 0; background: none; font: 500 13px var(--font); color: var(--kolor-tekst); cursor: pointer; }
   /* Kontakt: nagłówek niżej (obok modelu), krótszy opis, pola jedno pod drugim, zgoda jako notka pod przyciskiem */
   /* Kontakt na jednym ekranie: bez wyboru tematu (zostaje odsłuch), imię i e-mail obok siebie */
-  #kontakt { padding-top: 96px; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  #kontakt { padding-top: 110px; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
   .kon-lane { top: 84px; width: 118px; height: 118px; }
   .kon-copy .lead { font-size: 15px; }
   .kform { margin-top: 24px; gap: 16px; }
-  .seg { display: none; }
   .frow { gap: 12px; }
   .fld.msg { --msg-max: 30svh; }
   .fld.msg textarea { min-height: 88px; }
@@ -403,15 +410,16 @@ section { position: relative; min-height: 100vh; min-height: 100svh; }
   #spec > div:nth-child(7) { display: none; } /* tylko na stronie, w arkuszu są wszystkie */
   .dane-lane { min-height: 0; }
   .clock b { font-size: 40px; }
-  .track { margin-top: 8px; }
   .day-foot { margin-top: 16px; }
 }
-/* tablet pionowo: większy nagłówek; formularz Kontaktu w większym piśmie, bo ekran jest duży i oglądany z dalszej odległości */
+/* tablet pionowo (wymiary z ramek Tablet 768 w Figmie): większy nagłówek, przyciski 36 pod nim, dół Użytkowania 77 */
 @media (min-width: 561px) and (max-aspect-ratio: 5/6) {
   .hero-copy .h1 { font-size: 64px; }
-  .fld span, .seg button, .consent, .send small { font-size: 15px; }
-  .fld input, .fld textarea { font-size: 17px; padding: 18px 20px; }
-  .consent input { width: 20px; height: 20px; }
+  .hero-copy .cta-row { margin-top: 36px; }
+  .day { padding-bottom: 77px; }
+  .spec { grid-auto-flow: column; grid-template-rows: repeat(4, auto); } /* Figma: lewa kolumna 4 wiersze, prawa 4 */
+  .kon-copy .lead .long { display: inline; }
+  .kform { margin-top: 52px; } /* Figma Tablet 768: opis → formularz 52 */
 }
 /* niskie ekrany (laptopy 13", okna przeglądarki z paskami): gęściej, żeby sekcje mieściły się w jednym ekranie */
 @media (max-height: 780px) and (min-aspect-ratio: 5/6) {

@@ -4,3 +4,5 @@ wersje/
 models/
 _render*.html
 _pomiar.js
+_porownaj.js
+_figma-pomiar.json
