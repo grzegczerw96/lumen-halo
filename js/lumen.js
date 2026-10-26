@@ -56,6 +56,7 @@ const fitRect = (r, maxS, hk = 1, wk = 0.85) => {
 };
 const LP_MOB_H = 210; // pas na dole ekranu (tablet, telefon) na opis cechy i pasek stanu
 const KON_R = [0.08, -0.75]; // obrót słuchawek w Kontakcie (jak w ofercie)
+const KON_TURN = 0.45; // obrót w Kontakcie przy przewijaniu: z −0,75 do −0,3 rad (skos, nie profil)
 const P = {
   // Anatomia (lupa): duży model na środku smugi światła, ok. 58% wysokości ekranu; zbliżenia detali stoją wokół
   an: () => {
@@ -288,11 +289,12 @@ function scrollState(y) {
     S.dane = 1; S.bg = 'ffffff';
   }
   else if (y <= B.cE) {
-    // Kontakt (przypięty): słuchawki jeszcze chwilę zostają na swoim miejscu i przy przewijaniu kołyszą się w lewo
-    // i w prawo, a potem rozmywają się i znikają (przenikanie). Komputer: w tym samym miejscu z rozmycia wyostrza się
-    // piórko. Telefon, tablet i węższe ekrany: piórko pojawi się dopiero nad stopką (mniej miejsca, mniejsze ryzyko).
-    const p = seg(y, B.cS, B.cE), sw = Math.sin(seg(p, 0, 0.5) * Math.PI * 2);
-    const k = { ...POSES.kon, ry: POSES.kon.ry + 0.32 * sw, rz: -0.06 * sw };
+    // Kontakt (przypięty): słuchawki jeszcze chwilę zostają na swoim miejscu i przy przewijaniu powoli, jednym ruchem
+    // obracają się do środka (bez powrotu, kończą pod skosem, nie bokiem), a potem rozmywają się i znikają (przenikanie).
+    // Komputer: w tym samym miejscu z rozmycia wyostrza się piórko. Telefon, tablet i węższe ekrany: piórko pojawi się
+    // dopiero nad stopką (mniej miejsca, mniejsze ryzyko).
+    const p = seg(y, B.cS, B.cE), turn = smooth(seg(p, 0, 0.5));
+    const k = { ...POSES.kon, ry: POSES.kon.ry + KON_TURN * turn };
     S.dane = 1; S.bg = 'ffffff';
     if (!featherReady()) { S.pose = k; return S; } // piórko jeszcze się liczy: słuchawki zostają
     S.wave = featherSide() ? 0.5 * smooth(seg(p, 0.5, 0.9)) : smooth(seg(p, 0.5, 1));
